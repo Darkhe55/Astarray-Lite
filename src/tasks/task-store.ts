@@ -1,6 +1,7 @@
 import { LiteError } from "../contracts/errors.js";
 import {
   activateNextTask,
+  completeActiveTask,
   createEmptyTaskSequence,
   insertTask,
   removeTask,
@@ -140,6 +141,33 @@ export class TaskStore {
     this.sequence = removeTask(this.sequence, taskId, this.now().toISOString());
     this.records.delete(taskId);
     await this.persist();
+  }
+
+  async finishActive(input: {
+    readonly status: "done" | "stale" | "cancelled";
+    readonly archiveReason: string;
+    readonly evidence?: LiteTaskRecord["evidence"];
+  }): Promise<LiteTaskRecord> {
+    if (this.sequence.activeTaskId === null) {
+      throw new LiteError("LITE_TASK_NOT_FOUND", "there is no active task");
+    }
+    const active = this.requireRecord(this.sequence.activeTaskId);
+    const nowIso = this.now().toISOString();
+    const finished: LiteTaskRecord = {
+      ...active,
+      status: input.status,
+      revision: active.revision + 1,
+      updatedAtIso: nowIso,
+      evidence: input.evidence ?? active.evidence,
+      ...(input.status === "done"
+        ? { completedAtIso: nowIso, archivedAtIso: nowIso }
+        : { archivedAtIso: nowIso }),
+      archiveReason: input.archiveReason,
+    };
+    this.records.set(active.taskId, finished);
+    this.sequence = completeActiveTask(this.sequence, nowIso);
+    await this.persist();
+    return finished;
   }
 
   private withStatus(
