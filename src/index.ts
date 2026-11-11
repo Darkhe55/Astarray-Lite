@@ -62,5 +62,6 @@ export * from "./tasks/task-store.js";
 export * from "./tasks/task-document.js";
 export * from "./tasks/task-archive.js";
 export * from "./tasks/completion-verifier.js";
+export * from "./tasks/goal-task.js";
 export * from "./inbox/user-message.js";
 export * from "./inbox/user-inbox.js";

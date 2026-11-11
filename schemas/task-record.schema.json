@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://astarray.dev/schemas/lite-task-record.json",
+  "title": "LiteTaskRecord",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "taskId",
+    "revision",
+    "title",
+    "objective",
+    "constraints",
+    "acceptanceCriteria",
+    "status",
+    "taskKind",
+    "createdAtIso",
+    "updatedAtIso",
+    "source",
+    "detailDocumentPath",
+    "progressNotes",
+    "evidence",
+    "attempts",
+    "followUpTaskIds"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "taskId": { "type": "string", "minLength": 1 },
+    "revision": { "type": "integer", "minimum": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "objective": { "type": "string", "minLength": 1 },
+    "constraints": { "type": "array", "items": { "type": "string" } },
+    "acceptanceCriteria": { "type": "array", "items": { "type": "string" } },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "active", "running", "blocked", "done", "stale", "cancelled"]
+    },
+    "taskKind": { "type": "string", "enum": ["normal", "goal"] },
+    "parentGoalId": { "type": "string", "minLength": 1 },
+    "goal": {
+      "type": "object",
+      "required": [
+        "goalState",
+        "situation",
+        "successCriteria",
+        "childTaskIds",
+        "reviewPolicy",
+        "reviewRequested",
+        "reviewCount",
+        "noProgressReviewCount"
+      ],
+      "properties": {
+        "goalState": {
+          "type": "string",
+          "enum": ["pursuing", "waiting", "achieved", "abandoned"]
+        },
+        "situation": { "type": "string", "minLength": 1 },
+        "successCriteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "childTaskIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "reviewPolicy": {
+          "type": "object",
+          "required": ["trigger"],
+          "properties": {
+            "trigger": { "type": "string", "enum": ["after-children", "interval", "manual"] },
+            "intervalSeconds": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
+        "lastReviewedAtIso": { "type": "string", "format": "date-time" },
+        "nextReviewAtIso": { "type": "string", "format": "date-time" },
+        "reviewRequested": { "type": "boolean" },
+        "reviewCount": { "type": "integer", "minimum": 0 },
+        "noProgressReviewCount": { "type": "integer", "minimum": 0 },
+        "achievedAtIso": { "type": "string", "format": "date-time" },
+        "abandonedAtIso": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "createdAtIso": { "type": "string", "format": "date-time" },
+    "updatedAtIso": { "type": "string", "format": "date-time" },
+    "source": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["user", "agent", "system"] },
+        "messageId": { "type": "string" },
+        "parentTaskId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "detailDocumentPath": { "type": "string", "minLength": 1 },
+    "progressNotes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["atIso", "turnId", "note"],
+        "properties": {
+          "atIso": { "type": "string", "format": "date-time" },
+          "turnId": { "type": "string" },
+          "note": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "reference", "summary"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["file", "command", "url", "note"] },
+          "reference": { "type": "string" },
+          "summary": { "type": "string" },
+          "contentHash": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "blockedReason": { "type": "string" },
+    "attempts": { "type": "integer", "minimum": 0 },
+    "followUpTaskIds": { "type": "array", "items": { "type": "string" } },
+    "reviewOfTaskId": { "type": "string" },
+    "completedAtIso": { "type": "string", "format": "date-time" },
+    "archivedAtIso": { "type": "string", "format": "date-time" },
+    "archiveReason": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "taskKind": { "const": "goal" } },
+        "required": ["taskKind"]
+      },
+      "then": { "required": ["goal"] }
+    }
+  ]
+}
