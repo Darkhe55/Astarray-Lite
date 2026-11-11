@@ -54,6 +54,8 @@ export * from "./messages/reply-store.js";
 export * from "./messages/user-turn.js";
 export * from "./monitors/monitor-registry.js";
 export * from "./monitors/monitor-executors.js";
+export * from "./monitors/monitor-scheduler.js";
+export * from "./monitors/monitor-projection.js";
 export * from "./permissions/capabilities.js";
 export * from "./permissions/ask-store.js";
 export * from "./permissions/safe-preview.js";
