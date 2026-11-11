@@ -19,6 +19,7 @@ export * from "./facade/lite-application-facade.js";
 export * from "./contracts/kernel-port.js";
 export * from "./application/lite-application.js";
 export * from "./application/options.js";
+export * from "./cli/lite-command.js";
 export * from "./context/canonical-json.js";
 export * from "./context/context-assembler.js";
 export * from "./context/context-manifest.js";
