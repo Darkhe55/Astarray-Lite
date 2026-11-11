@@ -112,6 +112,7 @@ async function writeFileAtomic(absolutePath: string, content: string): Promise<v
 function buildReadFileTool(options: Required<FileToolOptions>): LiteToolSpec {
   return {
     name: "read_file",
+    capability: "fs.read",
     summary: "Read a workspace text file with line numbers and pagination.",
     category: "basic",
     toolClass: "readonly",
@@ -151,6 +152,7 @@ function buildReadFileTool(options: Required<FileToolOptions>): LiteToolSpec {
 function buildListDirectoryTool(options: Required<FileToolOptions>): LiteToolSpec {
   return {
     name: "list_directory",
+    capability: "fs.read",
     summary: "List one directory level inside the workspace.",
     category: "basic",
     toolClass: "readonly",
@@ -200,6 +202,7 @@ function buildListDirectoryTool(options: Required<FileToolOptions>): LiteToolSpe
 function buildWriteFileTool(options: Required<FileToolOptions>, backupStore: FileBackupStore): LiteToolSpec {
   return {
     name: "write_file",
+    capability: "fs.write",
     summary: "Create or overwrite a workspace text file atomically, with a pre-image backup.",
     category: "basic",
     toolClass: "restricted",
@@ -268,6 +271,7 @@ function buildWriteFileTool(options: Required<FileToolOptions>, backupStore: Fil
 function buildReplaceInFileTool(options: Required<FileToolOptions>, backupStore: FileBackupStore): LiteToolSpec {
   return {
     name: "replace_in_file",
+    capability: "fs.write",
     summary: "Replace exact text in a workspace file, with a pre-image backup.",
     category: "basic",
     toolClass: "restricted",
@@ -346,3 +350,4 @@ export function registerFileTools(
   registry.register(buildWriteFileTool(resolved, backupStore));
   registry.register(buildReplaceInFileTool(resolved, backupStore));
 }
+

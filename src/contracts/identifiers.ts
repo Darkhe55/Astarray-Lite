@@ -5,7 +5,7 @@ const TIME_LENGTH = 10;
 const RANDOM_LENGTH = 16;
 const TOTAL_LENGTH = TIME_LENGTH + RANDOM_LENGTH;
 
-export type LiteIdentifierPrefix = "msg" | "tsk" | "mon" | "trn" | "pkg";
+export type LiteIdentifierPrefix = "msg" | "tsk" | "mon" | "trn" | "pkg" | "ask";
 
 function encodeTime(milliseconds: number): string {
   let remaining = Math.floor(milliseconds);
@@ -41,6 +41,6 @@ export function isLiteIdentifier(
   value: string,
   prefix?: LiteIdentifierPrefix,
 ): boolean {
-  const expectedPrefix = prefix === undefined ? "(?:msg|tsk|mon|trn|pkg)" : prefix;
+  const expectedPrefix = prefix === undefined ? "(?:msg|tsk|mon|trn|pkg|ask)" : prefix;
   return new RegExp(`^${expectedPrefix}_[0-9A-HJKMNP-TV-Z]{${TOTAL_LENGTH}}$`, "u").test(value);
 }

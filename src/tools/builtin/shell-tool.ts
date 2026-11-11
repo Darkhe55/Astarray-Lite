@@ -198,6 +198,7 @@ export function registerShellTool(registry: ToolRegistry, options: ShellToolOpti
 
   const tool: LiteToolSpec = {
     name: "shell",
+    capability: "process.shell",
     summary: "Run a non-interactive shell command inside the workspace with a timeout.",
     category: "basic",
     toolClass: "restricted",
@@ -277,3 +278,4 @@ export function registerShellTool(registry: ToolRegistry, options: ShellToolOpti
 
   registry.register(tool);
 }
+

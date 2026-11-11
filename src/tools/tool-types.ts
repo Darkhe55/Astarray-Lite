@@ -1,4 +1,5 @@
 import type { LiteToolDefinition } from "../context/context-assembler.js";
+import type { LiteCapabilityId } from "../permissions/capabilities.js";
 
 export type LiteToolCategory = "basic" | "task" | "monitor" | "installed";
 
@@ -25,6 +26,7 @@ export interface LiteToolSpec extends LiteToolDefinition {
   readonly toolClass: LiteToolClass;
   readonly isIdempotent: boolean;
   readonly requiresBackup: boolean;
+  readonly capability?: LiteCapabilityId | undefined;
   readonly handler: LiteToolHandler;
   readonly timeoutMilliseconds?: number;
 }
