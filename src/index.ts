@@ -38,6 +38,7 @@ export * from "./kernel/preemption.js";
 export * from "./runtime/fake-provider.js";
 export * from "./runtime/provider.js";
 export * from "./runtime/provider-turn-runner.js";
+export * from "./runtime/openai-provider.js";
 export * from "./runtime/retry-policy.js";
 export * from "./runtime/usage-budget.js";
 export * from "./tools/tool-types.js";
