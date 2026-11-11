@@ -21,6 +21,7 @@ export * from "./context/canonical-json.js";
 export * from "./context/context-assembler.js";
 export * from "./context/context-manifest.js";
 export * from "./context/hash.js";
+export * from "./context/token-budget.js";
 export * from "./persistence/journal.js";
 export * from "./persistence/lite-paths.js";
 export * from "./persistence/lock.js";
