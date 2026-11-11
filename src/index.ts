@@ -16,3 +16,7 @@ export * from "./contracts/facade.js";
 export * from "./contracts/kernel-port.js";
 export * from "./application/lite-application.js";
 export * from "./application/options.js";
+export * from "./persistence/journal.js";
+export * from "./persistence/lite-paths.js";
+export * from "./persistence/lock.js";
+export * from "./persistence/state-store.js";
