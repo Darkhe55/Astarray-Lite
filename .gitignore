@@ -1,0 +1,26 @@
+# Local scratch
+.tmp/
+*.log
+*.tmp
+
+# Dependencies / build output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vitest/
+.npm-cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local environment
+.env
+.env.*
+*.pem
+*.key
+*.p12
+id_rsa
