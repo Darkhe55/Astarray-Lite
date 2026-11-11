@@ -31,6 +31,7 @@ export * from "./kernel/state-machine.js";
 export * from "./kernel/listener-loop.js";
 export * from "./kernel/task-loop.js";
 export * from "./kernel/turn-arbiter.js";
+export * from "./kernel/preemption.js";
 export * from "./runtime/fake-provider.js";
 export * from "./runtime/provider.js";
 export * from "./runtime/provider-turn-runner.js";
