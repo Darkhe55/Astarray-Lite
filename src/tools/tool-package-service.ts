@@ -5,8 +5,9 @@ import { LiteError } from "../contracts/errors.js";
 import { canonicalJsonString } from "../context/canonical-json.js";
 import { sha256Buffer, sha256Digest } from "../context/hash.js";
 import { assertSafePathSegment, type LitePaths } from "../persistence/lite-paths.js";
-import { writeJsonAtomic } from "../persistence/state-store.js";
+import { writeJsonAtomic, readJsonWithBackup } from "../persistence/state-store.js";
 import { isLiteCapabilityId, type LiteCapabilityId } from "../permissions/capabilities.js";
+import type { LiteToolDefinition } from "../context/context-assembler.js";
 
 export interface ToolPackageManifestTool {
   readonly name: string;
@@ -30,6 +31,7 @@ export interface ToolPackageManifest {
   readonly tools: readonly ToolPackageManifestTool[];
   readonly files: readonly ToolPackageManifestFile[];
   readonly packageHash: string;
+  readonly isBuiltIn?: boolean;
 }
 
 export interface ToolPackagePreview {
@@ -46,10 +48,17 @@ export interface InstalledToolPackage {
   readonly packageId: string;
   readonly version: string;
   readonly installedAtIso: string;
-  readonly isEnabled: false;
+  readonly isEnabled: boolean;
+  readonly isBuiltIn: boolean;
   readonly packageHash: string;
   readonly capabilities: readonly LiteCapabilityId[];
   readonly directory: string;
+}
+
+interface LifecycleFile {
+  readonly schemaVersion: 1;
+  readonly revision: number;
+  readonly updatedAtIso: string;
 }
 
 const PACKAGE_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
@@ -171,6 +180,7 @@ export function parseToolPackageManifest(json: string): ToolPackageManifest {
     tools,
     files,
     packageHash,
+    ...(record["isBuiltIn"] === true ? { isBuiltIn: true } : {}),
   };
 }
 
@@ -207,6 +217,7 @@ export class ToolPackageService {
       description: manifest.description,
       tools: manifest.tools,
       files: manifest.files,
+      ...(manifest.isBuiltIn === undefined ? {} : { isBuiltIn: manifest.isBuiltIn }),
     });
     if (computedHash !== manifest.packageHash) {
       throw new LiteError("LITE_TOOL_PACKAGE_HASH_MISMATCH", "package hash does not match");
@@ -273,6 +284,7 @@ export class ToolPackageService {
       version: manifest.version,
       installedAtIso: this.now().toISOString(),
       isEnabled: false,
+      isBuiltIn: manifest.isBuiltIn === true,
       packageHash: manifest.packageHash,
       capabilities: preview.capabilities,
       directory,
@@ -293,6 +305,153 @@ export class ToolPackageService {
       path.join(directory, "install.json.bak"),
       installed,
     );
+    await this.bumpRevision();
     return installed;
+  }
+
+  async listInstalled(): Promise<readonly InstalledToolPackage[]> {
+    let packageDirectories: string[];
+    try {
+      packageDirectories = await fs.readdir(this.paths.toolPackagesDirectory);
+    } catch (error) {
+      if ((error as { code?: unknown }).code === "ENOENT") return [];
+      throw error;
+    }
+    const installed: InstalledToolPackage[] = [];
+    for (const packageId of packageDirectories) {
+      const packageDirectory = path.join(this.paths.toolPackagesDirectory, packageId);
+      const versions = await fs.readdir(packageDirectory).catch(() => [] as string[]);
+      for (const version of versions) {
+        const record = await this.readInstallRecord(packageId, version).catch(() => null);
+        if (record !== null) installed.push(record);
+      }
+    }
+    return installed.sort((left, right) =>
+      `${left.packageId}@${left.version}`.localeCompare(`${right.packageId}@${right.version}`),
+    );
+  }
+
+  async setEnabled(
+    packageId: string,
+    version: string,
+    isEnabled: boolean,
+  ): Promise<InstalledToolPackage> {
+    const installed = await this.requireInstallRecord(packageId, version);
+    const updated: InstalledToolPackage = { ...installed, isEnabled };
+    const directory = path.join(this.paths.toolPackagesDirectory, packageId, version);
+    await writeJsonAtomic(
+      path.join(directory, "install.json"),
+      path.join(directory, "install.json.bak"),
+      updated,
+    );
+    await this.bumpRevision();
+    return updated;
+  }
+
+  async delete(
+    packageId: string,
+    version: string,
+    options: { readonly backup?: boolean } = {},
+  ): Promise<void> {
+    const installed = await this.requireInstallRecord(packageId, version);
+    if (installed.isBuiltIn) {
+      throw new LiteError("LITE_TOOL_PACKAGE_INSTALL_DENIED", "built-in packages cannot be deleted");
+    }
+    const directory = path.join(this.paths.toolPackagesDirectory, packageId, version);
+    if (options.backup !== false) {
+      const backupDirectory = path.join(
+        this.paths.backupsDirectory,
+        "tool-packages",
+        packageId,
+        `${version}-${this.now().getTime()}`,
+      );
+      try {
+        await fs.mkdir(path.dirname(backupDirectory), { recursive: true });
+        await fs.cp(directory, backupDirectory, { recursive: true });
+      } catch {
+        throw new LiteError("LITE_BACKUP_FAILED", "could not back up the tool package");
+      }
+    }
+    await fs.rm(directory, { recursive: true, force: true });
+    await this.bumpRevision();
+  }
+
+  async getToolsetRevision(): Promise<number> {
+    const result = await readJsonWithBackup<LifecycleFile>(
+      path.join(this.paths.toolPackagesDirectory, "lifecycle.json"),
+      path.join(this.paths.toolPackagesDirectory, "lifecycle.json.bak"),
+    );
+    return result?.value.revision ?? 1;
+  }
+
+  async getEnabledToolDefinitions(): Promise<readonly LiteToolDefinition[]> {
+    const installed = await this.listInstalled();
+    const definitions: LiteToolDefinition[] = [];
+    const seen = new Set<string>();
+    for (const record of installed) {
+      if (!record.isEnabled) continue;
+      const directory = path.join(this.paths.toolPackagesDirectory, record.packageId, record.version);
+      const manifestResult = await readJsonWithBackup<ToolPackageManifest>(
+        path.join(directory, "manifest.json"),
+        path.join(directory, "manifest.json.bak"),
+      );
+      if (manifestResult === null) continue;
+      for (const tool of manifestResult.value.tools) {
+        if (seen.has(tool.name)) {
+          throw new LiteError("LITE_TOOL_PACKAGE_INVALID", `duplicate enabled tool: ${tool.name}`);
+        }
+        seen.add(tool.name);
+        definitions.push({
+          name: tool.name,
+          summary: tool.summary,
+          inputSchema: tool.inputSchema,
+          category: "installed",
+        });
+      }
+    }
+    return definitions.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private async requireInstallRecord(
+    packageId: string,
+    version: string,
+  ): Promise<InstalledToolPackage> {
+    assertSafePathSegment(packageId, "packageId");
+    assertSafePathSegment(version, "version");
+    const record = await this.readInstallRecord(packageId, version);
+    if (record === null) {
+      throw new LiteError("LITE_TOOL_PACKAGE_INVALID", "tool package is not installed");
+    }
+    return record;
+  }
+
+  private async readInstallRecord(
+    packageId: string,
+    version: string,
+  ): Promise<InstalledToolPackage | null> {
+    assertSafePathSegment(packageId, "packageId");
+    assertSafePathSegment(version, "version");
+    const directory = path.join(this.paths.toolPackagesDirectory, packageId, version);
+    const result = await readJsonWithBackup<InstalledToolPackage>(
+      path.join(directory, "install.json"),
+      path.join(directory, "install.json.bak"),
+    );
+    return result?.value ?? null;
+  }
+
+  private async bumpRevision(): Promise<number> {
+    const current = await this.getToolsetRevision();
+    const next = current + 1;
+    await fs.mkdir(this.paths.toolPackagesDirectory, { recursive: true });
+    await writeJsonAtomic(
+      path.join(this.paths.toolPackagesDirectory, "lifecycle.json"),
+      path.join(this.paths.toolPackagesDirectory, "lifecycle.json.bak"),
+      {
+        schemaVersion: 1,
+        revision: next,
+        updatedAtIso: this.now().toISOString(),
+      } satisfies LifecycleFile,
+    );
+    return next;
   }
 }
