@@ -43,6 +43,8 @@ export * from "./tools/tool-schema.js";
 export * from "./tools/tool-registry.js";
 export * from "./tools/tool-executor.js";
 export * from "./tools/tool-package-service.js";
+export * from "./tools/mcp-tool-source.js";
+export * from "./mcp/mcp-client.js";
 export * from "./tools/builtin/path-safety.js";
 export * from "./tools/builtin/backup-store.js";
 export * from "./tools/builtin/file-tools.js";
