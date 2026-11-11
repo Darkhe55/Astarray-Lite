@@ -32,7 +32,7 @@ export interface OpenAiCompatibleProviderOptions {
 }
 
 interface OpenAiMessage {
-  readonly role: "user" | "assistant" | "tool";
+  readonly role: "system" | "user" | "assistant" | "tool";
   readonly content: string;
   readonly tool_call_id?: string;
   readonly tool_calls?: readonly {

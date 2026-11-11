@@ -2,7 +2,7 @@ import type { LiteTokenUsage } from "../contracts/events.js";
 import type { LiteToolDefinition } from "../context/context-assembler.js";
 
 export interface LiteProviderMessage {
-  readonly role: "user" | "assistant" | "tool";
+  readonly role: "system" | "user" | "assistant" | "tool";
   readonly content: string;
   readonly toolCallId?: string;
   readonly toolName?: string;
