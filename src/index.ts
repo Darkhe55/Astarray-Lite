@@ -57,5 +57,7 @@ export * from "./tasks/task-sequence.js";
 export * from "./tasks/task-sequence-store.js";
 export * from "./tasks/task-record.js";
 export * from "./tasks/task-store.js";
+export * from "./tasks/task-document.js";
+export * from "./tasks/task-archive.js";
 export * from "./inbox/user-message.js";
 export * from "./inbox/user-inbox.js";
