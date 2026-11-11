@@ -42,6 +42,7 @@ export * from "./tools/tool-types.js";
 export * from "./tools/tool-schema.js";
 export * from "./tools/tool-registry.js";
 export * from "./tools/tool-executor.js";
+export * from "./tools/tool-package-service.js";
 export * from "./tools/builtin/path-safety.js";
 export * from "./tools/builtin/backup-store.js";
 export * from "./tools/builtin/file-tools.js";
