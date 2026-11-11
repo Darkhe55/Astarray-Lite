@@ -34,6 +34,8 @@ export * from "./kernel/turn-arbiter.js";
 export * from "./runtime/fake-provider.js";
 export * from "./runtime/provider.js";
 export * from "./runtime/provider-turn-runner.js";
+export * from "./runtime/retry-policy.js";
+export * from "./runtime/usage-budget.js";
 export * from "./tasks/task-sequence.js";
 export * from "./tasks/task-sequence-store.js";
 export * from "./inbox/user-message.js";
