@@ -55,5 +55,7 @@ export * from "./permissions/safe-preview.js";
 export * from "./permissions/permission-manager.js";
 export * from "./tasks/task-sequence.js";
 export * from "./tasks/task-sequence-store.js";
+export * from "./tasks/task-record.js";
+export * from "./tasks/task-store.js";
 export * from "./inbox/user-message.js";
 export * from "./inbox/user-inbox.js";
