@@ -43,6 +43,8 @@ export * from "./tools/tool-executor.js";
 export * from "./tools/builtin/path-safety.js";
 export * from "./tools/builtin/backup-store.js";
 export * from "./tools/builtin/file-tools.js";
+export * from "./tools/builtin/shell-policy.js";
+export * from "./tools/builtin/shell-tool.js";
 export * from "./tasks/task-sequence.js";
 export * from "./tasks/task-sequence-store.js";
 export * from "./inbox/user-message.js";

@@ -38,7 +38,7 @@ export interface ToolExecutorOptions {
 }
 
 interface ExecutionOutcome {
-  readonly kind: "ok" | "error" | "timeout";
+  readonly kind: "result" | "thrown" | "timeout";
   readonly outputText?: string;
   readonly isError?: boolean;
   readonly error?: unknown;
@@ -247,11 +247,11 @@ export class ToolExecutor {
       })
       .then(
         (value): ExecutionOutcome => ({
-          kind: value.isError === true ? "error" : "ok",
+          kind: "result",
           outputText: value.outputText,
           isError: value.isError === true,
         }),
-        (error: unknown): ExecutionOutcome => ({ kind: "error", error }),
+        (error: unknown): ExecutionOutcome => ({ kind: "thrown", error }),
       );
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
@@ -278,13 +278,21 @@ export class ToolExecutor {
         errorMessage: "tool timed out",
       });
     }
-    if (outcome.kind === "error") {
+    if (outcome.kind === "thrown") {
       const error = outcome.error;
       return finish({
         ok: false,
         outputText: "",
         errorCode: error instanceof LiteError ? error.code : "LITE_TOOL_EXECUTION_FAILED",
         errorMessage: safeErrorMessage(error),
+      });
+    }
+    if (outcome.kind !== "result") {
+      return finish({
+        ok: false,
+        outputText: "",
+        errorCode: "LITE_TOOL_EXECUTION_FAILED",
+        errorMessage: "tool produced an unknown outcome",
       });
     }
 
