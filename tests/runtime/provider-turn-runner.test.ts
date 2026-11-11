@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { FakeProvider } from "../../src/runtime/fake-provider.js";
 import { ProviderTurnRunner } from "../../src/runtime/provider-turn-runner.js";
-import type { LiteToolExecutionResult } from "../../src/runtime/provider-turn-runner.js";
+import type { LiteToolCallResult } from "../../src/runtime/provider-turn-runner.js";
 import type { LiteToolCall } from "../../src/runtime/provider.js";
 
 const messages = [{ role: "user" as const, content: "hello" }];
 
-function execute(call: LiteToolCall): Promise<LiteToolExecutionResult> {
+function execute(call: LiteToolCall): Promise<LiteToolCallResult> {
   return Promise.resolve({
     callId: call.callId,
     toolName: call.toolName,
@@ -178,3 +178,4 @@ describe("ProviderTurnRunner", () => {
     expect(aborted.errorCode).toBe("LITE_TURN_CANCELLED");
   });
 });
+

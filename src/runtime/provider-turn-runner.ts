@@ -8,7 +8,7 @@ import type {
   LiteToolCall,
 } from "./provider.js";
 
-export interface LiteToolExecutionResult {
+export interface LiteToolCallResult {
   readonly callId: string;
   readonly toolName: string;
   readonly outputText: string;
@@ -18,7 +18,7 @@ export interface LiteToolExecutionResult {
 export type LiteToolExecutor = (
   call: LiteToolCall,
   signal?: AbortSignal,
-) => Promise<LiteToolExecutionResult>;
+) => Promise<LiteToolCallResult>;
 
 export interface ProviderTurnInput {
   readonly provider: LiteProvider;
@@ -31,7 +31,7 @@ export interface ProviderTurnInput {
 
 export interface LiteToolCallRecord {
   readonly call: LiteToolCall;
-  readonly result: LiteToolExecutionResult;
+  readonly result: LiteToolCallResult;
 }
 
 export type ProviderTurnOutcome =
@@ -188,7 +188,7 @@ export class ProviderTurnRunner {
           return result("aborted", "", usage, toolCalls, iterations, "LITE_TURN_CANCELLED", "turn aborted");
         }
 
-        let execution: LiteToolExecutionResult;
+        let execution: LiteToolCallResult;
         try {
           execution = await input.executeTool(call, input.signal);
         } catch (error) {
@@ -222,3 +222,4 @@ export class ProviderTurnRunner {
     );
   }
 }
+
