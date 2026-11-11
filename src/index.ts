@@ -20,6 +20,7 @@ export * from "./application/options.js";
 export * from "./persistence/journal.js";
 export * from "./persistence/lite-paths.js";
 export * from "./persistence/lock.js";
+export * from "./persistence/recovery.js";
 export * from "./persistence/state-store.js";
 export * from "./kernel/state-machine.js";
 export * from "./tasks/task-sequence.js";

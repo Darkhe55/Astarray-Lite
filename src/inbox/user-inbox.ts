@@ -42,6 +42,7 @@ export interface UserInboxOptions {
   readonly paths: LitePaths;
   readonly now?: () => Date;
   readonly messageIdFactory?: () => string;
+  readonly isIndexWriteEnabled?: boolean;
 }
 
 /**
@@ -56,6 +57,7 @@ export class UserInbox {
   private readonly journal: LiteJournal;
   private readonly now: () => Date;
   private readonly messageIdFactory: () => string;
+  private readonly isIndexWriteEnabled: boolean;
   private readonly messages = new Map<string, LiteUserMessage>();
   private readonly idempotencyIndex = new Map<string, string>();
   private revision = 0;
@@ -67,6 +69,7 @@ export class UserInbox {
     this.now = options.now ?? (() => new Date());
     this.messageIdFactory =
       options.messageIdFactory ?? (() => createLiteIdentifier("msg"));
+    this.isIndexWriteEnabled = options.isIndexWriteEnabled ?? true;
   }
 
   async load(): Promise<void> {
@@ -209,6 +212,7 @@ export class UserInbox {
   }
 
   private async writeIndex(): Promise<void> {
+    if (!this.isIndexWriteEnabled) return;
     const index: UserInboxIndex = {
       schemaVersion: 1,
       revision: this.revision,

@@ -21,15 +21,25 @@ export class TaskSequenceStore {
   }
 
   async read(): Promise<LiteTaskSequence> {
+    return (await this.readWithSource()).sequence;
+  }
+
+  async readWithSource(): Promise<{
+    readonly sequence: LiteTaskSequence;
+    readonly source: "primary" | "backup" | "empty";
+  }> {
     const result = await readJsonWithBackup<LiteTaskSequence>(
       this.paths.sequenceFile,
       this.paths.sequenceBackupFile,
     );
     if (result === null) {
-      return createEmptyTaskSequence(new Date().toISOString());
+      return {
+        sequence: createEmptyTaskSequence(new Date().toISOString()),
+        source: "empty",
+      };
     }
     validateTaskSequence(result.value);
-    return result.value;
+    return { sequence: result.value, source: result.source };
   }
 
   async write(sequence: LiteTaskSequence): Promise<void> {
