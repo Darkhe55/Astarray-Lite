@@ -52,6 +52,7 @@ export * from "./tools/builtin/task-tools.js";
 export * from "./messages/message-slot.js";
 export * from "./messages/reply-store.js";
 export * from "./messages/user-turn.js";
+export * from "./monitors/monitor-registry.js";
 export * from "./permissions/capabilities.js";
 export * from "./permissions/ask-store.js";
 export * from "./permissions/safe-preview.js";
