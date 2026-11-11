@@ -75,6 +75,7 @@ export interface CreateTaskInput {
   readonly source?: LiteTaskRecord["source"];
   readonly nowIso?: string;
   readonly taskId?: string;
+  readonly reviewOfTaskId?: string;
 }
 
 export interface TaskPatch {
@@ -122,6 +123,7 @@ export function createTaskRecord(input: CreateTaskInput): LiteTaskRecord {
     evidence: [],
     attempts: 0,
     followUpTaskIds: [],
+    ...(input.reviewOfTaskId === undefined ? {} : { reviewOfTaskId: input.reviewOfTaskId }),
   };
 }
 

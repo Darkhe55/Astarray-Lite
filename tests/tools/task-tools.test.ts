@@ -133,6 +133,34 @@ describe("task tools", () => {
     expect((await readTaskArchive(paths, taskId))?.archiveReason).toBe("cancelled");
   });
 
+  it("rejects incomplete completion and creates a review task for needs-review", async () => {
+    const { store, executor } = await setup();
+    const inserted = await call(executor, "task_insert", {
+      position: "bottom",
+      title: "ship",
+      objective: "ship it",
+      acceptanceCriteria: ["report exists"],
+    });
+    const taskId = JSON.parse(inserted.outputText).taskId as string;
+    await call(executor, "task_read_top", {});
+
+    const rejected = await call(executor, "task_complete", {
+      summary: "shipped the report",
+      selfAssessment: "good",
+    });
+    expect(rejected.errorCode).toBe("LITE_COMPLETION_INCOMPLETE");
+    expect(store.list()[0]?.status).toBe("active");
+
+    const accepted = await call(executor, "task_complete", {
+      summary: "shipped the report",
+      evidence: [{ kind: "file", reference: "report.md", summary: "report" }],
+      criteriaResults: [{ criterionIndex: 0, result: "met", evidenceRef: "report.md" }],
+      selfAssessment: "needs-review",
+    });
+    expect(accepted.ok).toBe(true);
+    expect(store.list()[0]?.reviewOfTaskId).toBe(taskId);
+  });
+
   it("binds task creation to the active user message", async () => {
     const { inbox, userTurn, store, executor } = await setup();
     const message = await inbox.enqueue({ text: "please create a task" });

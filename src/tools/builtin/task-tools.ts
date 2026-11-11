@@ -4,6 +4,10 @@ import type { ToolRegistry } from "../tool-registry.js";
 import type { LiteToolHandlerResult, LiteToolSpec } from "../tool-types.js";
 import type { UserTurnController } from "../../messages/user-turn.js";
 import { archiveTask } from "../../tasks/task-archive.js";
+import {
+  verifyTaskCompletion,
+  type CompletionCriterionResult,
+} from "../../tasks/completion-verifier.js";
 import { renderTaskMarkdown, writeTaskDocuments } from "../../tasks/task-document.js";
 import type { LiteTaskRecord, TaskPatch } from "../../tasks/task-record.js";
 import type { TaskStore } from "../../tasks/task-store.js";
@@ -343,6 +347,7 @@ function buildCompleteTool(options: TaskToolOptions): LiteToolSpec {
     handler: async (argumentsValue): Promise<LiteToolHandlerResult> => {
       const record = asRecord(argumentsValue);
       const summary = requiredString(record, "summary");
+      const selfAssessment = (record["selfAssessment"] as "good" | "needs-review" | "blocked") ?? "good";
       const evidenceInput = Array.isArray(record["evidence"]) ? record["evidence"] : [];
       const evidence = evidenceInput
         .filter((entry): entry is Record<string, unknown> => entry !== null && typeof entry === "object")
@@ -352,6 +357,39 @@ function buildCompleteTool(options: TaskToolOptions): LiteToolSpec {
           summary: String(entry["summary"] ?? ""),
         }))
         .filter((entry) => entry.reference !== "");
+      const criteriaResults: CompletionCriterionResult[] = Array.isArray(record["criteriaResults"])
+        ? record["criteriaResults"]
+            .filter((entry): entry is Record<string, unknown> => entry !== null && typeof entry === "object")
+            .map((entry) => ({
+              ...(typeof entry["criterionIndex"] === "number"
+                ? { criterionIndex: entry["criterionIndex"] }
+                : {}),
+              ...(typeof entry["criterion"] === "string" ? { criterion: entry["criterion"] } : {}),
+              result: entry["result"] as "met" | "unmet" | "skipped",
+              ...(typeof entry["evidenceRef"] === "string"
+                ? { evidenceRef: entry["evidenceRef"] }
+                : {}),
+            }))
+        : [];
+
+      const active = options.taskStore.list()[0];
+      if (active === undefined) {
+        throw new LiteError("LITE_TASK_NOT_FOUND", "there is no active task");
+      }
+      const verification = verifyTaskCompletion({
+        record: active,
+        summary,
+        evidence,
+        criteriaResults,
+        selfAssessment,
+        pendingToolCallCount: 0,
+      });
+      if (!verification.ok) {
+        throw new LiteError("LITE_COMPLETION_INCOMPLETE", "completion verification failed", {
+          gaps: verification.gaps,
+        });
+      }
+
       const finished = await options.taskStore.finishActive({
         status: "done",
         archiveReason: "completed",
@@ -367,10 +405,13 @@ function buildCompleteTool(options: TaskToolOptions): LiteToolSpec {
         completion: {
           summary,
           evidence: evidence.map((entry) => entry.reference),
-          criteriaResults: [],
-          selfAssessment: (record["selfAssessment"] as "good" | "needs-review" | "blocked") ?? "good",
+          criteriaResults: criteriaResults.map((entry) => entry.result),
+          selfAssessment,
         },
       });
+      if (verification.reviewTask !== undefined) {
+        await options.taskStore.insertTask(verification.reviewTask, { kind: "top" });
+      }
       return { outputText: JSON.stringify(compactTask(finished)) };
     },
   };
