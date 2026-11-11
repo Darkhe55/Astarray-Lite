@@ -63,13 +63,22 @@ describe("lite public contracts", () => {
     expect(isLiteEvent(null)).toBe(false);
   });
 
-  it("fails closed before the kernel is implemented", async () => {
+  it("creates a scaffold facade that fails closed", async () => {
+    const application = await createLiteApplication({
+      kernel: "lite",
+      stateDirectory: ".astarray-lite",
+      workspaceRootPath: ".",
+    });
+    expect(application).toBeDefined();
     await expect(
-      createLiteApplication({
-        kernel: "lite",
-        stateDirectory: ".astarray-lite",
-        workspaceRootPath: ".",
+      application.submitTask({
+        sessionId: "session-1",
+        taskIdentifier: "task-1",
+        prompt: "hello",
       }),
     ).rejects.toMatchObject({ code: "LITE_NOT_IMPLEMENTED" });
+    await expect(application.querySnapshot()).rejects.toMatchObject({
+      code: "LITE_NOT_IMPLEMENTED",
+    });
   });
 });
