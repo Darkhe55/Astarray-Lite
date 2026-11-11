@@ -20,7 +20,7 @@ describe("createLiteApplication", () => {
     subscription.unsubscribe();
   });
 
-  it("rejects an empty user message before the kernel is wired", async () => {
+  it("rejects an empty user message", async () => {
     const application = await createLiteApplication(options);
     await expect(
       application.submitTask({
@@ -31,21 +31,21 @@ describe("createLiteApplication", () => {
     ).rejects.toMatchObject({ code: "LITE_USER_MESSAGE_EMPTY" });
   });
 
-  it("fails closed for kernel-backed operations", async () => {
+  it("queues, snapshots and cancels tasks", async () => {
     const application = await createLiteApplication(options);
-    await expect(
-      application.submitTask({
-        sessionId: "session-1",
-        taskIdentifier: "task-1",
-        prompt: "hello",
-      }),
-    ).rejects.toMatchObject({ code: "LITE_NOT_IMPLEMENTED" });
-    await expect(
-      application.cancelTask({ sessionId: "session-1", taskIdentifier: "task-1" }),
-    ).rejects.toMatchObject({ code: "LITE_NOT_IMPLEMENTED" });
-    await expect(application.querySnapshot()).rejects.toMatchObject({
-      code: "LITE_NOT_IMPLEMENTED",
+    const submitted = await application.submitTask({
+      sessionId: "session-1",
+      taskIdentifier: "task-1",
+      prompt: "hello",
     });
+    expect(submitted.status).toBe("queued");
+    const snapshot = await application.querySnapshot();
+    expect(snapshot.kernel).toBe("lite");
+    expect(snapshot.status).toBe("idle");
+    expect(snapshot.pendingTaskCount).toBe(1);
+
+    await application.cancelTask({ sessionId: "session-1", taskIdentifier: "task-1" });
+    expect((await application.querySnapshot()).pendingTaskCount).toBe(0);
   });
 
   it("rejects invalid cancellation input", async () => {

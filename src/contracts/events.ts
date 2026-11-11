@@ -33,7 +33,12 @@ export interface LiteTokenUsage {
   readonly cachedInputTokens: number;
 }
 
-export type LiteEvent =
+interface LiteEventMetadata {
+  readonly revision?: number;
+  readonly idempotencyId?: string;
+}
+
+export type LiteEvent = LiteEventMetadata & (
   | {
       readonly type: "kernel.started";
       readonly atIso: string;
@@ -182,7 +187,8 @@ export type LiteEvent =
       readonly atIso: string;
       readonly code: string;
       readonly message: string;
-    };
+    }
+);
 
 export type LiteEventListener = (event: LiteEvent) => void;
 
