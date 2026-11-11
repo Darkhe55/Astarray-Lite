@@ -16,6 +16,7 @@ import type {
   LiteKernelOptions,
   LiteKernelSnapshot,
 } from "./kernel-port.js";
+import type { LiteGoalProjection } from "../facade/goal-projection.js";
 
 export type LiteTaskStatus =
   | "queued"
@@ -56,6 +57,7 @@ export interface LiteApplicationFacade {
   cancelTask(input: { readonly sessionId: string; readonly taskIdentifier: string }): Promise<void>;
   queryCapabilities(): Promise<LiteCapabilityDescriptor>;
   querySnapshot(): Promise<LiteKernelSnapshot>;
+  queryGoals(): Promise<readonly LiteGoalProjection[]>;
 }
 
 export type LiteApplicationFactory = (

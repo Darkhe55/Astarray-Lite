@@ -12,6 +12,7 @@ import type {
   LiteEventSubscription,
 } from "../contracts/events.js";
 import type { LiteKernelSnapshot } from "../contracts/kernel-port.js";
+import type { LiteGoalProjection } from "../facade/goal-projection.js";
 import { validateLiteApplicationOptions } from "./options.js";
 
 function assertSubmitInput(input: LiteSubmitTaskInput): void {
@@ -71,6 +72,10 @@ class LiteApplicationScaffold implements LiteApplicationFacade {
       "LITE_NOT_IMPLEMENTED",
       "kernel runtime is not implemented yet (facade scaffold).",
     );
+  }
+
+  async queryGoals(): Promise<readonly LiteGoalProjection[]> {
+    return [];
   }
 }
 

@@ -14,6 +14,7 @@ export * from "./contracts/errors.js";
 export * from "./contracts/events.js";
 export * from "./contracts/facade.js";
 export * from "./contracts/identifiers.js";
+export * from "./facade/goal-projection.js";
 export * from "./contracts/kernel-port.js";
 export * from "./application/lite-application.js";
 export * from "./application/options.js";
