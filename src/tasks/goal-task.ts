@@ -127,7 +127,7 @@ export function isGoalDue(
   record: LiteTaskRecord,
   input: {
     readonly nowIso: string;
-    readonly childStatuses?: Readonly<Record<string, string>>;
+    readonly childStatuses?: Readonly<Record<string, string>> | undefined;
   },
 ): boolean {
   if (record.taskKind !== "goal" || record.goal === undefined) return false;

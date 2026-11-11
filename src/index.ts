@@ -63,5 +63,7 @@ export * from "./tasks/task-document.js";
 export * from "./tasks/task-archive.js";
 export * from "./tasks/completion-verifier.js";
 export * from "./tasks/goal-task.js";
+export * from "./tasks/goal-scheduler.js";
+export * from "./tasks/goal-review.js";
 export * from "./inbox/user-message.js";
 export * from "./inbox/user-inbox.js";
