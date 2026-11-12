@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { LiteError } from "../../contracts/errors.js";
 import type { DocumentAdapter } from "./document-adapters.js";
+import { extractDocxText } from "./docx-text.js";
 import { assertNotSensitivePath, resolveWorkspacePath } from "./path-safety.js";
 import type { ToolRegistry } from "../tool-registry.js";
 
@@ -68,6 +69,27 @@ export function registerDocumentTools(
       const relativePath = asPath(argumentsValue);
       assertNotSensitivePath(relativePath);
       const extension = extensionOf(relativePath);
+      if (extension === ".docx") {
+        const absolutePath = await resolveWorkspacePath({
+          workspaceRoot: options.workspaceRoot,
+          relativePath,
+        });
+        const stat = await fs.stat(absolutePath);
+        if (!stat.isFile()) throw new LiteError("LITE_INVALID_ARGUMENT", "path is not a file");
+        if (stat.size > maximumBytes) {
+          throw new LiteError("LITE_FILE_TOO_LARGE", "document is too large");
+        }
+        const text = extractDocxText(await fs.readFile(absolutePath));
+        return {
+          outputText: JSON.stringify({
+            path: relativePath,
+            extension,
+            sizeBytes: stat.size,
+            adapter: "builtin-docx",
+            text,
+          }),
+        };
+      }
       if (CONVERTER_EXTENSIONS.has(extension)) {
         const adapter = options.adapter;
         if (adapter === undefined || !adapter.extensions.includes(extension)) {
