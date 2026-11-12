@@ -3,6 +3,8 @@ import { promises as fs } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { runCommand, runLiteCommand } from "../../src/cli/lite-command.js";
+import { InMemoryCredentialStore } from "../../src/product/credential-store.js";
+import { saveProductConfig } from "../../src/product/config.js";
 import { FakeProvider } from "../../src/runtime/fake-provider.js";
 import { createTestDirectory, removeTestDirectory } from "../persistence/test-paths.js";
 
@@ -98,6 +100,23 @@ describe("lite CLI", () => {
     const output = JSON.parse(result.output) as { ok: boolean; path: string };
     expect(output.ok).toBe(true);
     expect(await fs.readFile(output.path, "utf8")).toContain("astarray-lite");
+  });
+
+  it("loads product config and fails closed without its credential", async () => {
+    const workspace = await createTestDirectory("cli-config");
+    directories.push(workspace);
+    await saveProductConfig(`${workspace}/product.json`, {
+      schemaVersion: 1,
+      provider: { baseUrl: "https://example.test/v1", modelIdentifier: "gpt-test" },
+      credentialReference: "MISSING_KEY",
+      profile: "balanced",
+    });
+    const result = await runLiteCommand(
+      ["run", "--kernel", "lite", "--json", "--config", "product.json", "hello"],
+      { cwd: workspace, credentialStore: new InMemoryCredentialStore() },
+    );
+    expect(result.exitCode).toBe(4);
+    expect(result.errorCode).toBe("LITE_PROVIDER_AUTH_FAILED");
   });
 
   it("keeps the default core path unchanged for this package", async () => {

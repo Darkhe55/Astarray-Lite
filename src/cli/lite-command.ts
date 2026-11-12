@@ -4,7 +4,9 @@ import { LITE_PACKAGE_VERSION } from "../contracts/package-version.js";
 import type { LiteProvider } from "../runtime/provider.js";
 import { OpenAiCompatibleProvider } from "../runtime/openai-provider.js";
 import { OpenAiImageProvider } from "../runtime/image-provider.js";
-import { createProductKernel } from "../product/product-kernel.js";
+import { createProductKernel, type ProductKernel } from "../product/product-kernel.js";
+import { createProductKernelFromConfig } from "../product/config.js";
+import { EnvironmentCredentialStore, type CredentialStore } from "../product/credential-store.js";
 import { resolveLitePaths } from "../persistence/lite-paths.js";
 import { readJsonWithBackup } from "../persistence/state-store.js";
 import { TaskSequenceStore } from "../tasks/task-sequence-store.js";
@@ -22,6 +24,7 @@ export interface LiteCommandOptions {
   readonly cwd?: string;
   readonly sessionId?: string;
   readonly provider?: LiteProvider;
+  readonly credentialStore?: CredentialStore;
 }
 
 interface ParsedOptions {
@@ -31,6 +34,7 @@ interface ParsedOptions {
   readonly enqueue: boolean;
   readonly allowTools: boolean;
   readonly profile: "safe" | "balanced" | "trusted";
+  readonly configPath: string | undefined;
   readonly positionals: readonly string[];
   readonly idempotencyKey: string | undefined;
   readonly taskIdentifier: string | undefined;
@@ -44,6 +48,7 @@ function parseOptions(argv: readonly string[]): ParsedOptions {
   let enqueue = false;
   let allowTools = false;
   let profile: "safe" | "balanced" | "trusted" = "balanced";
+  let configPath: string | undefined;
   let idempotencyKey: string | undefined;
   let taskIdentifier: string | undefined;
   let outPath: string | undefined;
@@ -67,6 +72,9 @@ function parseOptions(argv: readonly string[]): ParsedOptions {
       }
       profile = value;
       index += 1;
+    } else if (argument === "--config") {
+      configPath = argv[index + 1];
+      index += 1;
     } else if (argument === "--idempotency") {
       idempotencyKey = argv[index + 1];
       index += 1;
@@ -84,7 +92,7 @@ function parseOptions(argv: readonly string[]): ParsedOptions {
       positionals.push(argument);
     }
   }
-  return { command, kernel, json, enqueue, allowTools, profile, positionals, idempotencyKey, taskIdentifier, outPath };
+  return { command, kernel, json, enqueue, allowTools, profile, configPath, positionals, idempotencyKey, taskIdentifier, outPath };
 }
 
 function exitCodeFor(code: string | undefined): number {
@@ -178,23 +186,36 @@ export async function runLiteCommand(
         };
       }
 
-      const provider = options.provider ?? providerFromEnvironment();
-      if (provider === undefined) {
-        throw new LiteError(
-          "LITE_PROVIDER_AUTH_FAILED",
-          "set ASTRARRAY_LITE_API_KEY (and optionally ASTRARRAY_LITE_BASE_URL/ASTRARRAY_LITE_MODEL)",
-        );
+      const approvalHandler = async () => (parsed.allowTools ? "allow-session" : "deny");
+      let kernel: ProductKernel;
+      if (parsed.configPath !== undefined) {
+        kernel = await createProductKernelFromConfig({
+          workspaceRootPath: options.cwd ?? ".",
+          configPath: path.resolve(options.cwd ?? ".", parsed.configPath),
+          credentialStore: options.credentialStore ?? new EnvironmentCredentialStore(),
+          sessionId: options.sessionId ?? "cli-session",
+          projectIdentifier: "cli-project",
+          approvalHandler,
+        });
+      } else {
+        const provider = options.provider ?? providerFromEnvironment();
+        if (provider === undefined) {
+          throw new LiteError(
+            "LITE_PROVIDER_AUTH_FAILED",
+            "set ASTRARRAY_LITE_API_KEY (and optionally ASTRARRAY_LITE_BASE_URL/ASTRARRAY_LITE_MODEL)",
+          );
+        }
+        const imageProvider = imageProviderFromEnvironment();
+        kernel = await createProductKernel({
+          workspaceRootPath: options.cwd ?? ".",
+          sessionId: options.sessionId ?? "cli-session",
+          projectIdentifier: "cli-project",
+          provider,
+          profile: parsed.profile,
+          ...(imageProvider === undefined ? {} : { imageProvider }),
+          approvalHandler,
+        });
       }
-      const imageProvider = imageProviderFromEnvironment();
-      const kernel = await createProductKernel({
-        workspaceRootPath: options.cwd ?? ".",
-        sessionId: options.sessionId ?? "cli-session",
-        projectIdentifier: "cli-project",
-        provider,
-        profile: parsed.profile,
-        ...(imageProvider === undefined ? {} : { imageProvider }),
-        approvalHandler: async () => (parsed.allowTools ? "allow-session" : "deny"),
-      });
       await kernel.start();
       try {
         await kernel.submitUserMessage({ text: prompt });
