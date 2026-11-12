@@ -73,4 +73,20 @@ describe("createProductKernel", () => {
     expect((await kernel.getSnapshot()).activeUserMessageId).toBeNull();
     await kernel.stop();
   });
+
+  it("rejects a second instance on the same workspace", async () => {
+    const { workspace, kernel } = await setup([]);
+    await kernel.start();
+    const second = await createProductKernel({
+      workspaceRootPath: workspace,
+      sessionId: "session-2",
+      projectIdentifier: "project-1",
+      provider: new FakeProvider([]),
+      recoverOnStart: false,
+    });
+    await expect(second.start()).rejects.toMatchObject({ code: "LITE_LOCK_HELD" });
+    await kernel.stop();
+    await second.start();
+    await second.stop();
+  });
 });

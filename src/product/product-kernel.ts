@@ -13,6 +13,8 @@ import { MessageSlot } from "../messages/message-slot.js";
 import { ReplyStore } from "../messages/reply-store.js";
 import { UserTurnController } from "../messages/user-turn.js";
 import { resolveLitePaths, type LitePaths } from "../persistence/lite-paths.js";
+import { LiteLock } from "../persistence/lock.js";
+import { recoverLiteState } from "../persistence/recovery.js";
 import { PermissionManager } from "../permissions/permission-manager.js";
 import type { LiteCapabilityId, LitePermissionProfile } from "../permissions/capabilities.js";
 import { createSafePreview } from "../permissions/safe-preview.js";
@@ -48,6 +50,8 @@ export interface ProductKernelOptions {
   readonly systemPromptVersion?: string;
   readonly maxOutputTokens?: number;
   readonly listenerTickIntervalMilliseconds?: number;
+  readonly lockStaleAfterMilliseconds?: number;
+  readonly recoverOnStart?: boolean;
   readonly shellRunner?: ShellProcessRunner;
   readonly now?: () => Date;
   readonly runId?: string;
@@ -68,6 +72,8 @@ class ProductKernelImpl implements ProductKernel {
   private readonly listener: ListenerLoop;
   private readonly options: ProductKernelOptions;
   private readonly taskStore: TaskStore;
+  private readonly lock: LiteLock;
+  private readonly recoverOnStart: boolean;
 
   constructor(input: {
     options: ProductKernelOptions;
@@ -76,6 +82,7 @@ class ProductKernelImpl implements ProductKernel {
     runtime: LiteKernelRuntime;
     listener: ListenerLoop;
     taskStore: TaskStore;
+    lock: LiteLock;
   }) {
     this.options = input.options;
     this.paths = input.paths;
@@ -83,16 +90,38 @@ class ProductKernelImpl implements ProductKernel {
     this.runtime = input.runtime;
     this.listener = input.listener;
     this.taskStore = input.taskStore;
+    this.lock = input.lock;
+    this.recoverOnStart = input.options.recoverOnStart ?? true;
   }
 
   async start(): Promise<void> {
-    await this.runtime.start();
-    this.listener.start();
+    const acquired = await this.lock.acquire({ allowStaleTakeover: true });
+    if (!acquired.acquired) {
+      throw new LiteError(
+        "LITE_LOCK_HELD",
+        `kernel is already running${acquired.holder === null ? "" : ` (pid ${acquired.holder.pid})`}`,
+      );
+    }
+    try {
+      if (this.recoverOnStart) {
+        await recoverLiteState({
+          paths: this.paths,
+          ...(this.options.now === undefined ? {} : { now: this.options.now }),
+        });
+        await this.taskStore.load();
+      }
+      await this.runtime.start();
+      this.listener.start();
+    } catch (error) {
+      await this.lock.release();
+      throw error;
+    }
   }
 
   async stop(): Promise<void> {
     this.listener.stop();
     await this.runtime.stop();
+    await this.lock.release();
   }
 
   async pause(): Promise<void> {
@@ -217,5 +246,12 @@ export async function createProductKernel(options: ProductKernelOptions): Promis
       : { listenerTickIntervalMilliseconds: options.listenerTickIntervalMilliseconds }),
   });
   const listener = new ListenerLoop(options.listenerTickIntervalMilliseconds ?? 3_000);
-  return new ProductKernelImpl({ options, paths, registry, runtime, listener, taskStore });
+  const lock = new LiteLock({
+    lockFile: paths.lockFile,
+    ...(options.lockStaleAfterMilliseconds === undefined
+      ? {}
+      : { staleAfterMilliseconds: options.lockStaleAfterMilliseconds }),
+    ...(options.now === undefined ? {} : { now: options.now }),
+  });
+  return new ProductKernelImpl({ options, paths, registry, runtime, listener, taskStore, lock });
 }
