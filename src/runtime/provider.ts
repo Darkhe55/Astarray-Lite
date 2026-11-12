@@ -1,9 +1,23 @@
 import type { LiteTokenUsage } from "../contracts/events.js";
 import type { LiteToolDefinition } from "../context/context-assembler.js";
 
+export interface LiteProviderImagePart {
+  readonly type: "image";
+  readonly mediaType: string;
+  readonly dataBase64: string;
+}
+
+export interface LiteProviderTextPart {
+  readonly type: "text";
+  readonly text: string;
+}
+
+export type LiteProviderContentPart = LiteProviderImagePart | LiteProviderTextPart;
+
 export interface LiteProviderMessage {
   readonly role: "system" | "user" | "assistant" | "tool";
   readonly content: string;
+  readonly contentParts?: readonly LiteProviderContentPart[];
   readonly toolCallId?: string;
   readonly toolName?: string;
   readonly toolCalls?: readonly LiteToolCall[];

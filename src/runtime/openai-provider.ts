@@ -1,5 +1,6 @@
 import type {
   LiteProvider,
+  LiteProviderContentPart,
   LiteProviderRequest,
   LiteProviderResponse,
   LiteProviderMessage,
@@ -31,9 +32,15 @@ export interface OpenAiCompatibleProviderOptions {
   readonly extraHeaders?: Readonly<Record<string, string>>;
 }
 
+interface OpenAiContentPart {
+  readonly type: "text" | "image_url";
+  readonly text?: string;
+  readonly image_url?: { readonly url: string };
+}
+
 interface OpenAiMessage {
   readonly role: "system" | "user" | "assistant" | "tool";
-  readonly content: string;
+  readonly content: string | readonly OpenAiContentPart[];
   readonly tool_call_id?: string;
   readonly tool_calls?: readonly {
     readonly id: string;
@@ -42,10 +49,24 @@ interface OpenAiMessage {
   }[];
 }
 
+function toOpenAiContent(parts: readonly LiteProviderContentPart[]): readonly OpenAiContentPart[] {
+  return parts.map((part) =>
+    part.type === "text"
+      ? { type: "text" as const, text: part.text }
+      : {
+          type: "image_url" as const,
+          image_url: { url: `data:${part.mediaType};base64,${part.dataBase64}` },
+        },
+  );
+}
+
 function toOpenAiMessage(message: LiteProviderMessage): OpenAiMessage {
   return {
     role: message.role,
-    content: message.content,
+    content:
+      message.contentParts === undefined
+        ? message.content
+        : toOpenAiContent(message.contentParts),
     ...(message.toolCallId === undefined ? {} : { tool_call_id: message.toolCallId }),
     ...(message.toolCalls === undefined
       ? {}

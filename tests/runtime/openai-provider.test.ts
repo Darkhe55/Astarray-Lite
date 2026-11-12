@@ -87,6 +87,37 @@ describe("OpenAiCompatibleProvider", () => {
     });
   });
 
+  it("maps image content parts to data URLs", async () => {
+    const fetchImpl = vi.fn<ProviderFetch>(async () =>
+      response({ choices: [{ message: { content: "seen" } }] }),
+    );
+    const provider = new OpenAiCompatibleProvider({
+      baseUrl: "https://example.test",
+      modelIdentifier: "gpt-test",
+      fetchImpl,
+    });
+    await provider.complete({
+      ...request,
+      messages: [
+        {
+          role: "user",
+          content: "see",
+          contentParts: [
+            { type: "text", text: "see" },
+            { type: "image", mediaType: "image/png", dataBase64: "iVBORw==" },
+          ],
+        },
+      ],
+    });
+    const body = JSON.parse(fetchImpl.mock.calls[0]?.[1]?.body ?? "{}") as {
+      messages: { content: unknown }[];
+    };
+    expect(body.messages[0]?.content).toEqual([
+      { type: "text", text: "see" },
+      { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw==" } },
+    ]);
+  });
+
   it("maps auth and rate-limit status without leaking keys", async () => {
     const authProvider = new OpenAiCompatibleProvider({
       baseUrl: "https://example.test",

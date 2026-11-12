@@ -1,4 +1,5 @@
 import { LiteError } from "../contracts/errors.js";
+import { promises as fs } from "node:fs";
 import type { LiteEventListener, LiteEventSubscription } from "../contracts/events.js";
 import type {
   LiteKernelOptions,
@@ -14,10 +15,11 @@ import type { MessageSlot } from "../messages/message-slot.js";
 import type { UserTurnController } from "../messages/user-turn.js";
 import type { LitePaths } from "../persistence/lite-paths.js";
 import { ProviderTurnRunner, type ProviderTurnOutcome } from "../runtime/provider-turn-runner.js";
-import type { LiteProvider } from "../runtime/provider.js";
+import type { LiteProvider, LiteProviderContentPart } from "../runtime/provider.js";
 import type { TaskStore } from "../tasks/task-store.js";
 import { ToolRegistry } from "../tools/tool-registry.js";
 import type { ToolExecutor } from "../tools/tool-executor.js";
+import { resolveWorkspacePath } from "../tools/builtin/path-safety.js";
 
 export interface LiteKernelRuntimeOptions extends LiteKernelOptions {
   readonly sessionId: string;
@@ -181,11 +183,16 @@ export class LiteKernelRuntime implements LiteKernelPort {
       });
 
       const runner = new ProviderTurnRunner();
+      const contentParts = await this.buildContentParts(active);
       const result = await runner.run({
         provider: this.options.provider,
         messages: [
           { role: "system", content: this.options.systemPromptText ?? "You are the Astarray Lite single-agent kernel." },
-          { role: "user", content: active.text },
+          {
+            role: "user",
+            content: active.text,
+            ...(contentParts === undefined ? {} : { contentParts }),
+          },
         ],
         tools,
         maxOutputTokens: this.options.maxOutputTokens ?? 4_096,
@@ -230,6 +237,34 @@ export class LiteKernelRuntime implements LiteKernelPort {
     } finally {
       if (this.status === "running") this.status = "idle";
     }
+  }
+
+  private async buildContentParts(active: {
+    readonly text: string;
+    readonly attachments: readonly { readonly path: string; readonly mediaType: string }[];
+  }): Promise<readonly LiteProviderContentPart[] | undefined> {
+    const supported = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+    const images: LiteProviderContentPart[] = [];
+    for (const attachment of active.attachments) {
+      if (!supported.has(attachment.mediaType.toLowerCase())) continue;
+      try {
+        const absolutePath = await resolveWorkspacePath({
+          workspaceRoot: this.options.paths.workspaceRoot,
+          relativePath: attachment.path,
+        });
+        const stat = await fs.stat(absolutePath);
+        if (!stat.isFile() || stat.size > 8 * 1024 * 1024) continue;
+        const data = await fs.readFile(absolutePath);
+        images.push({
+          type: "image",
+          mediaType: attachment.mediaType.toLowerCase(),
+          dataBase64: data.toString("base64"),
+        });
+      } catch {
+        // A missing or unsafe attachment is omitted rather than failing the turn.
+      }
+    }
+    return images.length === 0 ? undefined : [{ type: "text", text: active.text }, ...images];
   }
 
   private emit(event: Parameters<LiteEventListener>[0]): void {

@@ -1,3 +1,6 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import { UserInbox } from "../../src/inbox/user-inbox.js";
@@ -119,5 +122,22 @@ describe("LiteKernelRuntime", () => {
     await expect(kernel.submitUserMessage({ text: "late" })).rejects.toMatchObject({
       code: "LITE_INVALID_ARGUMENT",
     });
+  });
+
+  it("passes image attachments to the provider as content parts", async () => {
+    const { kernel, provider, workspace } = await setup([{ kind: "text", text: "seen" }]);
+    await fs.writeFile(path.join(workspace, "pixel.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    await kernel.start();
+    await kernel.submitUserMessage({
+      text: "what is this",
+      attachments: [{ path: "pixel.png", mediaType: "image/png", sizeBytes: 4 }],
+    });
+    await kernel.runOnce();
+    const parts = provider.requests[0]?.messages[1]?.contentParts;
+    expect(parts).toEqual([
+      { type: "text", text: "what is this" },
+      { type: "image", mediaType: "image/png", dataBase64: "iVBORw==" },
+    ]);
+    await kernel.stop();
   });
 });
