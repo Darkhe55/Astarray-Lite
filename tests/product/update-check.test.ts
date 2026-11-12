@@ -1,25 +1,29 @@
 import { generateKeyPairSync, sign } from "node:crypto";
+import { promises as fs } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
 import {
   checkForUpdate,
   compareVersions,
+  downloadUpdate,
   parseUpdateManifest,
   verifyUpdateManifest,
   type UpdateManifest,
 } from "../../src/product/update-check.js";
+import { sha256Buffer } from "../../src/context/hash.js";
+import { createTestDirectory, removeTestDirectory } from "../persistence/test-paths.js";
 
 const keys = generateKeyPairSync("ed25519");
 const publicKeyPem = keys.publicKey.export({ type: "spki", format: "pem" }).toString();
 
-function manifest(version = "1.1.0", channel: "stable" | "beta" = "stable"): UpdateManifest {
+function manifest(version = "1.1.0", channel: "stable" | "beta" = "stable", sha256 = `sha256:${"a".repeat(64)}`): UpdateManifest {
   const unsigned = {
     schemaVersion: 1 as const,
     version,
     channel,
     url: "https://example.test/astarray-lite.tgz",
-    sha256: `sha256:${"a".repeat(64)}`,
+    sha256,
   };
   const signature = sign(null, Buffer.from(JSON.stringify(unsigned)), keys.privateKey).toString("base64");
   return { ...unsigned, signature };
@@ -62,5 +66,37 @@ describe("update manifest", () => {
       parseUpdateManifest({ ...manifest(), url: "http://example.test/app.tgz" }),
     ).toThrow(/https/u);
     expect(() => parseUpdateManifest({ ...manifest(), sha256: "bad" })).toThrow(/sha256/u);
+  });
+
+  it("downloads and verifies the signed payload", async () => {
+    const workspace = await createTestDirectory("update-download");
+    try {
+      const bytes = Buffer.from("update payload");
+      const signed = manifest("1.1.0", "stable", sha256Buffer(bytes));
+      const target = await downloadUpdate({
+        manifest: signed,
+        directory: workspace,
+        fetchImpl: async () => ({
+          ok: true,
+          status: 200,
+          arrayBuffer: async () =>
+            bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+        }),
+      });
+      expect(await fs.readFile(target)).toEqual(bytes);
+      await expect(
+        downloadUpdate({
+          manifest: signed,
+          directory: workspace,
+          fetchImpl: async () => ({
+            ok: true,
+            status: 200,
+            arrayBuffer: async () => new TextEncoder().encode("tampered").buffer,
+          }),
+        }),
+      ).rejects.toMatchObject({ code: "LITE_UPDATE_MANIFEST_INVALID" });
+    } finally {
+      await removeTestDirectory(workspace);
+    }
   });
 });

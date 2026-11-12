@@ -1,6 +1,9 @@
 import { createPublicKey, verify } from "node:crypto";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 
 import { LiteError } from "../contracts/errors.js";
+import { sha256Buffer } from "../context/hash.js";
 
 export type UpdateChannel = "stable" | "beta";
 
@@ -20,6 +23,14 @@ export interface UpdateFetchResponse {
 }
 
 export type UpdateFetch = (url: string) => Promise<UpdateFetchResponse>;
+
+export interface UpdateDownloadResponse {
+  readonly ok: boolean;
+  readonly status: number;
+  arrayBuffer(): Promise<ArrayBuffer>;
+}
+
+export type UpdateDownloadFetch = (url: string) => Promise<UpdateDownloadResponse>;
 
 export type UpdateCheckResult =
   | { readonly status: "up-to-date"; readonly currentVersion: string }
@@ -135,4 +146,43 @@ export async function checkForUpdate(input: {
     return { status: "up-to-date", currentVersion: input.currentVersion };
   }
   return { status: "update-available", currentVersion: input.currentVersion, manifest };
+}
+
+export async function downloadUpdate(input: {
+  readonly manifest: UpdateManifest;
+  readonly directory: string;
+  readonly fetchImpl?: UpdateDownloadFetch;
+}): Promise<string> {
+  if (!/^https:\/\//u.test(input.manifest.url)) {
+    throw new LiteError("LITE_UPDATE_MANIFEST_INVALID", "update url must use https");
+  }
+  const fetchImpl =
+    input.fetchImpl ??
+    (async (url: string) => fetch(url) as unknown as Promise<UpdateDownloadResponse>);
+  let response: UpdateDownloadResponse;
+  try {
+    response = await fetchImpl(input.manifest.url);
+  } catch {
+    throw new LiteError("LITE_UPDATE_MANIFEST_INVALID", "update download failed");
+  }
+  if (!response.ok) {
+    throw new LiteError("LITE_UPDATE_MANIFEST_INVALID", "update download request failed");
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (sha256Buffer(bytes) !== input.manifest.sha256) {
+    throw new LiteError("LITE_UPDATE_MANIFEST_INVALID", "update payload hash does not match");
+  }
+  const rawName = path.basename(new URL(input.manifest.url).pathname);
+  const filename = rawName === "" || rawName === "." || rawName === ".." ? "update.tgz" : rawName;
+  await fs.mkdir(input.directory, { recursive: true });
+  const target = path.join(input.directory, filename);
+  const temporary = `${target}.download`;
+  try {
+    await fs.writeFile(temporary, bytes);
+    await fs.rename(temporary, target);
+  } catch {
+    await fs.rm(temporary, { force: true });
+    throw new LiteError("LITE_UPDATE_MANIFEST_INVALID", "could not write update payload");
+  }
+  return target;
 }
