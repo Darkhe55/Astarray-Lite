@@ -51,6 +51,7 @@ describe("ProductGuiAdapter", () => {
     const history = await adapter.queryHistory();
     expect(history).toHaveLength(1);
     expect(history[0]?.text).toBe("done");
+    expect(await adapter.queryTasks()).toEqual([]);
     expect(await adapter.queryGoals()).toEqual([]);
     expect(await adapter.queryCapabilities()).toMatchObject({
       images: false,

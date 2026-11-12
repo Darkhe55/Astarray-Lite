@@ -3,6 +3,7 @@ import type { LiteKernelSnapshot, LiteUserMessageReceipt } from "../contracts/ke
 import type { LiteGoalProjection } from "../facade/goal-projection.js";
 import { describeLiteCapabilities, type LiteCapabilityDescriptor } from "../contracts/capabilities.js";
 import { projectGuiHistory, type GuiHistoryMessage } from "../facade/history-projection.js";
+import { projectGuiTasks, type GuiTaskRow } from "../facade/gui-projection.js";
 import type { ApprovalBroker, PendingApproval } from "./approval-broker.js";
 import type { LiteApprovalDecision, ProductKernel } from "./product-kernel.js";
 
@@ -32,6 +33,7 @@ export interface ProductGuiPort {
   querySnapshot(): Promise<LiteKernelSnapshot>;
   queryGoals(): Promise<readonly LiteGoalProjection[]>;
   queryHistory(limit?: number): Promise<readonly GuiHistoryMessage[]>;
+  queryTasks(): Promise<readonly GuiTaskRow[]>;
   queryApprovals(): readonly PendingApproval[];
   resolveApproval(id: string, decision: LiteApprovalDecision): boolean;
 }
@@ -97,6 +99,10 @@ export class ProductGuiAdapter implements ProductGuiPort {
 
   async queryHistory(limit = 50): Promise<readonly GuiHistoryMessage[]> {
     return projectGuiHistory(await this.kernel.queryHistory(limit));
+  }
+
+  async queryTasks(): Promise<readonly GuiTaskRow[]> {
+    return projectGuiTasks(await this.kernel.queryTasks());
   }
 
   queryApprovals(): readonly PendingApproval[] {

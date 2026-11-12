@@ -35,6 +35,7 @@ import { ToolRegistry } from "../tools/tool-registry.js";
 import { TaskSequenceStore } from "../tasks/task-sequence-store.js";
 import { TaskStore } from "../tasks/task-store.js";
 import { projectGoals, type LiteGoalProjection } from "../facade/goal-projection.js";
+import type { LiteTaskRecord } from "../tasks/task-record.js";
 import { LiteMetrics } from "../observability/metrics.js";
 import {
   buildDiagnosticBundle,
@@ -79,6 +80,7 @@ export interface ProductKernel extends LiteKernelPort {
   runLoop(signal: AbortSignal): Promise<void>;
   queryGoals(): Promise<readonly LiteGoalProjection[]>;
   queryHistory(limit?: number): Promise<readonly ReplyRecord[]>;
+  queryTasks(): Promise<readonly LiteTaskRecord[]>;
   describeFeatures(): { readonly images: boolean; readonly documents: boolean };
   listBackups(limit?: number): Promise<readonly FileBackupRecord[]>;
   restoreBackup(backupId: string): Promise<FileBackupRecord>;
@@ -211,6 +213,10 @@ class ProductKernelImpl implements ProductKernel {
   async queryHistory(limit = 50): Promise<readonly ReplyRecord[]> {
     const replies = await this.replyStore.readReplies();
     return replies.slice(-Math.max(0, limit));
+  }
+
+  queryTasks(): Promise<readonly LiteTaskRecord[]> {
+    return Promise.resolve(this.taskStore.list());
   }
 
   describeFeatures(): { readonly images: boolean; readonly documents: boolean } {
