@@ -23,7 +23,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "verify:pack": "node scripts/verify-package.mjs",
+    "check": "npm run typecheck && npm run test && npm run build && npm run verify:pack"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
