@@ -73,6 +73,18 @@ describe("lite CLI", () => {
 
     const unknown = await runLiteCommand(["bogus", "--kernel", "lite", "--json"]);
     expect(unknown.exitCode).toBe(2);
+
+    const badProfile = await runLiteCommand([
+      "run",
+      "--kernel",
+      "lite",
+      "--profile",
+      "root",
+      "--json",
+      "hello",
+    ]);
+    expect(badProfile.exitCode).toBe(2);
+    expect(badProfile.errorCode).toBe("LITE_INVALID_ARGUMENT");
   });
 
   it("exports a redacted diagnostics bundle without a provider", async () => {

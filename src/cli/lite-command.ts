@@ -30,6 +30,7 @@ interface ParsedOptions {
   readonly json: boolean;
   readonly enqueue: boolean;
   readonly allowTools: boolean;
+  readonly profile: "safe" | "balanced" | "trusted";
   readonly positionals: readonly string[];
   readonly idempotencyKey: string | undefined;
   readonly taskIdentifier: string | undefined;
@@ -42,6 +43,7 @@ function parseOptions(argv: readonly string[]): ParsedOptions {
   let json = false;
   let enqueue = false;
   let allowTools = false;
+  let profile: "safe" | "balanced" | "trusted" = "balanced";
   let idempotencyKey: string | undefined;
   let taskIdentifier: string | undefined;
   let outPath: string | undefined;
@@ -58,6 +60,13 @@ function parseOptions(argv: readonly string[]): ParsedOptions {
       enqueue = true;
     } else if (argument === "--yes") {
       allowTools = true;
+    } else if (argument === "--profile") {
+      const value = argv[index + 1];
+      if (value !== "safe" && value !== "balanced" && value !== "trusted") {
+        throw new LiteError("LITE_INVALID_ARGUMENT", "profile must be safe, balanced or trusted");
+      }
+      profile = value;
+      index += 1;
     } else if (argument === "--idempotency") {
       idempotencyKey = argv[index + 1];
       index += 1;
@@ -75,7 +84,7 @@ function parseOptions(argv: readonly string[]): ParsedOptions {
       positionals.push(argument);
     }
   }
-  return { command, kernel, json, enqueue, allowTools, positionals, idempotencyKey, taskIdentifier, outPath };
+  return { command, kernel, json, enqueue, allowTools, profile, positionals, idempotencyKey, taskIdentifier, outPath };
 }
 
 function exitCodeFor(code: string | undefined): number {
@@ -182,6 +191,7 @@ export async function runLiteCommand(
         sessionId: options.sessionId ?? "cli-session",
         projectIdentifier: "cli-project",
         provider,
+        profile: parsed.profile,
         ...(imageProvider === undefined ? {} : { imageProvider }),
         approvalHandler: async () => (parsed.allowTools ? "allow-session" : "deny"),
       });
