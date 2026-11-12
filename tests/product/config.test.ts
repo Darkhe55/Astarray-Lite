@@ -27,6 +27,7 @@ const valid = {
 describe("product config", () => {
   it("parses and saves a key-free config", async () => {
     expect(parseProductConfig(valid)).toEqual(valid);
+    expect(parseProductConfig({ ...valid, telemetry: "off" })).toMatchObject({ telemetry: "off" });
     const workspace = await createTestDirectory("product-config");
     directories.push(workspace);
     const file = `${workspace}/product.json`;
@@ -40,6 +41,7 @@ describe("product config", () => {
       parseProductConfig({ ...valid, provider: { ...valid.provider, apiKey: "dummy" } }),
     ).toThrow(/credentialReference/u);
     expect(() => parseProductConfig({ ...valid, profile: "root" })).toThrow(/profile/u);
+    expect(() => parseProductConfig({ ...valid, telemetry: "always" })).toThrow(/telemetry/u);
   });
 
   it("fails closed when the credential is absent", async () => {

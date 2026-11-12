@@ -34,6 +34,7 @@ export interface ProductConfigV1 {
   readonly profile: LitePermissionProfile;
   readonly maxOutputTokens?: number;
   readonly image?: ProductImageConfig;
+  readonly telemetry?: "off" | "anonymous";
 }
 
 function assertObject(value: unknown, label: string): Record<string, unknown> {
@@ -84,6 +85,10 @@ export function parseProductConfig(value: unknown): ProductConfigV1 {
             modelIdentifier: assertString(imageRecord["modelIdentifier"], "image.modelIdentifier"),
           };
         })();
+  const telemetry = record["telemetry"];
+  if (telemetry !== undefined && telemetry !== "off" && telemetry !== "anonymous") {
+    throw new LiteError("LITE_INVALID_ARGUMENT", "telemetry must be off or anonymous");
+  }
   return {
     schemaVersion: 1,
     provider: {
@@ -118,6 +123,7 @@ export function parseProductConfig(value: unknown): ProductConfigV1 {
           })(),
         }),
     ...(image === undefined ? {} : { image }),
+    ...(telemetry === undefined ? {} : { telemetry }),
   };
 }
 
