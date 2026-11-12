@@ -1,3 +1,5 @@
+import { promises as fs } from "node:fs";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import { runCommand, runLiteCommand } from "../../src/cli/lite-command.js";
@@ -71,6 +73,19 @@ describe("lite CLI", () => {
 
     const unknown = await runLiteCommand(["bogus", "--kernel", "lite", "--json"]);
     expect(unknown.exitCode).toBe(2);
+  });
+
+  it("exports a redacted diagnostics bundle without a provider", async () => {
+    const workspace = await createTestDirectory("cli-diagnostics");
+    directories.push(workspace);
+    const result = await runLiteCommand(
+      ["diagnostics", "--kernel", "lite", "--json", "--out", "diag.json"],
+      { cwd: workspace },
+    );
+    expect(result.exitCode).toBe(0);
+    const output = JSON.parse(result.output) as { ok: boolean; path: string };
+    expect(output.ok).toBe(true);
+    expect(await fs.readFile(output.path, "utf8")).toContain("astarray-lite");
   });
 
   it("keeps the default core path unchanged for this package", async () => {

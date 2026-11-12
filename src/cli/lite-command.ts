@@ -4,6 +4,12 @@ import type { LiteProvider } from "../runtime/provider.js";
 import { OpenAiCompatibleProvider } from "../runtime/openai-provider.js";
 import { OpenAiImageProvider } from "../runtime/image-provider.js";
 import { createProductKernel } from "../product/product-kernel.js";
+import { resolveLitePaths } from "../persistence/lite-paths.js";
+import { readJsonWithBackup } from "../persistence/state-store.js";
+import { TaskSequenceStore } from "../tasks/task-sequence-store.js";
+import { LiteMetrics } from "../observability/metrics.js";
+import { buildDiagnosticBundle, writeDiagnosticBundle } from "../observability/diagnostic-bundle.js";
+import path from "node:path";
 
 export interface CliResult {
   readonly exitCode: number;
@@ -26,6 +32,7 @@ interface ParsedOptions {
   readonly positionals: readonly string[];
   readonly idempotencyKey: string | undefined;
   readonly taskIdentifier: string | undefined;
+  readonly outPath: string | undefined;
 }
 
 function parseOptions(argv: readonly string[]): ParsedOptions {
@@ -36,6 +43,7 @@ function parseOptions(argv: readonly string[]): ParsedOptions {
   let allowTools = false;
   let idempotencyKey: string | undefined;
   let taskIdentifier: string | undefined;
+  let outPath: string | undefined;
   const positionals: string[] = [];
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -55,6 +63,9 @@ function parseOptions(argv: readonly string[]): ParsedOptions {
     } else if (argument === "--task-id") {
       taskIdentifier = argv[index + 1];
       index += 1;
+    } else if (argument === "--out") {
+      outPath = argv[index + 1];
+      index += 1;
     } else if (argument !== undefined && argument.startsWith("--")) {
       throw new LiteError("LITE_INVALID_ARGUMENT", `unknown option: ${argument}`);
     } else if (command === undefined) {
@@ -63,7 +74,7 @@ function parseOptions(argv: readonly string[]): ParsedOptions {
       positionals.push(argument);
     }
   }
-  return { command, kernel, json, enqueue, allowTools, positionals, idempotencyKey, taskIdentifier };
+  return { command, kernel, json, enqueue, allowTools, positionals, idempotencyKey, taskIdentifier, outPath };
 }
 
 function exitCodeFor(code: string | undefined): number {
@@ -200,6 +211,34 @@ export async function runLiteCommand(
       } finally {
         await kernel.stop();
       }
+    }
+    if (parsed.command === "diagnostics") {
+      const workspace = path.resolve(options.cwd ?? ".");
+      const paths = resolveLitePaths({ stateDirectory: ".astarray-lite", workspaceRootPath: workspace });
+      const state = await readJsonWithBackup<{ status?: string }>(
+        paths.stateFile,
+        paths.stateBackupFile,
+      );
+      const sequence = await new TaskSequenceStore(paths).read();
+      const metrics = new LiteMetrics();
+      metrics.setGauge("tasks.pending", sequence.pendingTaskIds.length);
+      const bundle = buildDiagnosticBundle({
+        packageVersion: "0.0.0",
+        kernelStatus: state?.value.status ?? "idle",
+        metrics: metrics.snapshot(),
+        recentEvents: [],
+      });
+      const outputPath = path.resolve(
+        workspace,
+        parsed.outPath ?? path.join(".astarray-lite", "diagnostics.json"),
+      );
+      await writeDiagnosticBundle(outputPath, bundle);
+      return {
+        exitCode: 0,
+        output: parsed.json
+          ? JSON.stringify({ ok: true, kernel: "lite", command: "diagnostics", path: outputPath })
+          : outputPath,
+      };
     }
     if (parsed.command === "goals") {
       return {
