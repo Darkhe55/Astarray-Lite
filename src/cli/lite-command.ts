@@ -1,5 +1,8 @@
 import { createLiteApplication } from "../application/lite-application.js";
 import { LiteError } from "../contracts/errors.js";
+import type { LiteProvider } from "../runtime/provider.js";
+import { OpenAiCompatibleProvider } from "../runtime/openai-provider.js";
+import { createProductKernel } from "../product/product-kernel.js";
 
 export interface CliResult {
   readonly exitCode: number;
@@ -10,19 +13,26 @@ export interface CliResult {
 export interface LiteCommandOptions {
   readonly cwd?: string;
   readonly sessionId?: string;
+  readonly provider?: LiteProvider;
 }
 
-function parseOptions(argv: readonly string[]): {
+interface ParsedOptions {
   readonly command: string | undefined;
   readonly kernel: string;
   readonly json: boolean;
+  readonly enqueue: boolean;
+  readonly allowTools: boolean;
   readonly positionals: readonly string[];
   readonly idempotencyKey: string | undefined;
   readonly taskIdentifier: string | undefined;
-} {
+}
+
+function parseOptions(argv: readonly string[]): ParsedOptions {
   let command: string | undefined;
   let kernel = "core";
   let json = false;
+  let enqueue = false;
+  let allowTools = false;
   let idempotencyKey: string | undefined;
   let taskIdentifier: string | undefined;
   const positionals: string[] = [];
@@ -34,6 +44,10 @@ function parseOptions(argv: readonly string[]): {
       index += 1;
     } else if (argument === "--json") {
       json = true;
+    } else if (argument === "--enqueue") {
+      enqueue = true;
+    } else if (argument === "--yes") {
+      allowTools = true;
     } else if (argument === "--idempotency") {
       idempotencyKey = argv[index + 1];
       index += 1;
@@ -48,14 +62,20 @@ function parseOptions(argv: readonly string[]): {
       positionals.push(argument);
     }
   }
-  return { command, kernel, json, positionals, idempotencyKey, taskIdentifier };
+  return { command, kernel, json, enqueue, allowTools, positionals, idempotencyKey, taskIdentifier };
 }
 
 function exitCodeFor(code: string | undefined): number {
   if (code === undefined) return 0;
   if (code === "LITE_INVALID_ARGUMENT" || code === "LITE_USER_MESSAGE_EMPTY") return 2;
   if (code === "LITE_TASK_NOT_FOUND") return 3;
-  if (code === "LITE_PERMISSION_DENIED" || code === "LITE_PERMISSION_TIMEOUT") return 4;
+  if (
+    code === "LITE_PERMISSION_DENIED" ||
+    code === "LITE_PERMISSION_TIMEOUT" ||
+    code === "LITE_PROVIDER_AUTH_FAILED"
+  ) {
+    return 4;
+  }
   return 1;
 }
 
@@ -71,11 +91,21 @@ function errorResult(error: unknown, json: boolean): CliResult {
   };
 }
 
+function providerFromEnvironment(): LiteProvider | undefined {
+  const apiKey = process.env["ASTRARRAY_LITE_API_KEY"];
+  if (apiKey === undefined || apiKey.trim() === "") return undefined;
+  return new OpenAiCompatibleProvider({
+    baseUrl: process.env["ASTRARRAY_LITE_BASE_URL"] ?? "https://api.openai.com/v1",
+    apiKey,
+    modelIdentifier: process.env["ASTRARRAY_LITE_MODEL"] ?? "gpt-4.1-mini",
+  });
+}
+
 export async function runLiteCommand(
   argv: readonly string[],
   options: LiteCommandOptions = {},
 ): Promise<CliResult> {
-  let parsed;
+  let parsed: ParsedOptions;
   try {
     parsed = parseOptions(argv);
   } catch (error) {
@@ -89,26 +119,74 @@ export async function runLiteCommand(
   try {
     if (parsed.command === "run") {
       const prompt = parsed.positionals.join(" ");
-      const application = await createLiteApplication({
-        kernel: "lite",
-        stateDirectory: ".astarray-lite",
+      if (prompt.trim() === "") {
+        throw new LiteError("LITE_USER_MESSAGE_EMPTY", "prompt must be non-empty");
+      }
+
+      if (parsed.enqueue) {
+        const application = await createLiteApplication({
+          kernel: "lite",
+          stateDirectory: ".astarray-lite",
+          workspaceRootPath: options.cwd ?? ".",
+          sessionId: options.sessionId ?? "cli-session",
+        });
+        const result = await application.submitTask({
+          sessionId: options.sessionId ?? "cli-session",
+          taskIdentifier: parsed.taskIdentifier ?? "cli-task",
+          prompt,
+          ...(parsed.idempotencyKey === undefined
+            ? {}
+            : { idempotencyKey: parsed.idempotencyKey }),
+        });
+        return {
+          exitCode: 0,
+          output: parsed.json
+            ? JSON.stringify({ ok: true, kernel: "lite", command: "run", mode: "enqueue", result })
+            : `queued ${result.taskIdentifier} (${result.status})`,
+        };
+      }
+
+      const provider = options.provider ?? providerFromEnvironment();
+      if (provider === undefined) {
+        throw new LiteError(
+          "LITE_PROVIDER_AUTH_FAILED",
+          "set ASTRARRAY_LITE_API_KEY (and optionally ASTRARRAY_LITE_BASE_URL/ASTRARRAY_LITE_MODEL)",
+        );
+      }
+      const kernel = await createProductKernel({
         workspaceRootPath: options.cwd ?? ".",
         sessionId: options.sessionId ?? "cli-session",
+        projectIdentifier: "cli-project",
+        provider,
+        approvalHandler: async () => (parsed.allowTools ? "allow-session" : "deny"),
       });
-      const result = await application.submitTask({
-        sessionId: options.sessionId ?? "cli-session",
-        taskIdentifier: parsed.taskIdentifier ?? "cli-task",
-        prompt,
-        ...(parsed.idempotencyKey === undefined
-          ? {}
-          : { idempotencyKey: parsed.idempotencyKey }),
-      });
-      return {
-        exitCode: 0,
-        output: parsed.json
-          ? JSON.stringify({ ok: true, kernel: "lite", command: "run", result })
-          : `queued ${result.taskIdentifier} (${result.status})`,
-      };
+      await kernel.start();
+      try {
+        await kernel.submitUserMessage({ text: prompt });
+        const result = await kernel.runOnce();
+        if (result.outcome === "error") {
+          throw new LiteError(
+            (result.errorCode as LiteError["code"] | undefined) ?? "LITE_PROVIDER_REQUEST_FAILED",
+            result.errorCode ?? "provider turn failed",
+          );
+        }
+        return {
+          exitCode: 0,
+          output: parsed.json
+            ? JSON.stringify({
+                ok: true,
+                kernel: "lite",
+                command: "run",
+                mode: "execute",
+                outcome: result.outcome,
+                text: result.text,
+                toolCallCount: result.toolCallCount,
+              })
+            : result.text || `(${result.outcome})`,
+        };
+      } finally {
+        await kernel.stop();
+      }
     }
     if (parsed.command === "goals") {
       return {
