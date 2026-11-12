@@ -89,4 +89,44 @@ describe("createProductKernel", () => {
     await second.start();
     await second.stop();
   });
+
+  it("lists and restores file pre-images", async () => {
+    const { workspace, kernel } = await setup([
+      {
+        kind: "tool-calls",
+        calls: [
+          {
+            callId: "call-1",
+            toolName: "write_file",
+            argumentsJson: JSON.stringify({ path: "note.txt", content: "v1" }),
+          },
+        ],
+      },
+      { kind: "text", text: "first" },
+      {
+        kind: "tool-calls",
+        calls: [
+          {
+            callId: "call-2",
+            toolName: "write_file",
+            argumentsJson: JSON.stringify({ path: "note.txt", content: "v2" }),
+          },
+        ],
+      },
+      { kind: "text", text: "second" },
+    ]);
+    await kernel.start();
+    await kernel.submitUserMessage({ text: "write v1" });
+    await kernel.runOnce();
+    await kernel.submitUserMessage({ text: "write v2" });
+    await kernel.runOnce();
+
+    const backups = await kernel.listBackups();
+    expect(backups).toHaveLength(1);
+    expect(backups[0]?.originalPath).toBe("note.txt");
+    await kernel.restoreBackup(backups[0]?.backupId ?? "");
+    expect(await fs.readFile(path.join(workspace, "note.txt"), "utf8")).toBe("v1");
+    expect(await kernel.listBackups()).toHaveLength(2);
+    await kernel.stop();
+  });
 });

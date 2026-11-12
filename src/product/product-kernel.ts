@@ -24,6 +24,7 @@ import { registerFileTools } from "../tools/builtin/file-tools.js";
 import { registerReplyTools } from "../tools/builtin/reply-tools.js";
 import { registerShellTool } from "../tools/builtin/shell-tool.js";
 import { registerTaskTools } from "../tools/builtin/task-tools.js";
+import { FileBackupStore, type FileBackupRecord } from "../tools/builtin/backup-store.js";
 import { ToolExecutor, type ToolExecutionHooks } from "../tools/tool-executor.js";
 import { ToolRegistry } from "../tools/tool-registry.js";
 import { TaskSequenceStore } from "../tasks/task-sequence-store.js";
@@ -63,6 +64,8 @@ export interface ProductKernel extends LiteKernelPort {
   runOnce(): Promise<LiteKernelTurnResult>;
   runLoop(signal: AbortSignal): Promise<void>;
   queryGoals(): Promise<readonly LiteGoalProjection[]>;
+  listBackups(limit?: number): Promise<readonly FileBackupRecord[]>;
+  restoreBackup(backupId: string): Promise<FileBackupRecord>;
 }
 
 class ProductKernelImpl implements ProductKernel {
@@ -74,6 +77,7 @@ class ProductKernelImpl implements ProductKernel {
   private readonly taskStore: TaskStore;
   private readonly lock: LiteLock;
   private readonly recoverOnStart: boolean;
+  private readonly backupStore: FileBackupStore;
 
   constructor(input: {
     options: ProductKernelOptions;
@@ -83,6 +87,7 @@ class ProductKernelImpl implements ProductKernel {
     listener: ListenerLoop;
     taskStore: TaskStore;
     lock: LiteLock;
+    backupStore: FileBackupStore;
   }) {
     this.options = input.options;
     this.paths = input.paths;
@@ -91,6 +96,7 @@ class ProductKernelImpl implements ProductKernel {
     this.listener = input.listener;
     this.taskStore = input.taskStore;
     this.lock = input.lock;
+    this.backupStore = input.backupStore;
     this.recoverOnStart = input.options.recoverOnStart ?? true;
   }
 
@@ -167,6 +173,17 @@ class ProductKernelImpl implements ProductKernel {
 
   async queryGoals(): Promise<readonly LiteGoalProjection[]> {
     return projectGoals(this.taskStore.list());
+  }
+
+  listBackups(limit?: number): Promise<readonly FileBackupRecord[]> {
+    return this.backupStore.listBackups(limit);
+  }
+
+  restoreBackup(backupId: string): Promise<FileBackupRecord> {
+    return this.backupStore.restoreBackup({
+      backupId,
+      workspaceRoot: this.paths.workspaceRoot,
+    });
   }
 }
 
@@ -253,5 +270,18 @@ export async function createProductKernel(options: ProductKernelOptions): Promis
       : { staleAfterMilliseconds: options.lockStaleAfterMilliseconds }),
     ...(options.now === undefined ? {} : { now: options.now }),
   });
-  return new ProductKernelImpl({ options, paths, registry, runtime, listener, taskStore, lock });
+  const backupStore = new FileBackupStore({
+    stateRoot: paths.stateRoot,
+    ...(options.now === undefined ? {} : { now: options.now }),
+  });
+  return new ProductKernelImpl({
+    options,
+    paths,
+    registry,
+    runtime,
+    listener,
+    taskStore,
+    lock,
+    backupStore,
+  });
 }
