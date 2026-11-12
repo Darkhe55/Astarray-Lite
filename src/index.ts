@@ -23,6 +23,7 @@ export * from "./application/lite-application.js";
 export * from "./application/options.js";
 export * from "./cli/lite-command.js";
 export * from "./product/product-kernel.js";
+export * from "./product/credential-store.js";
 export * from "./context/canonical-json.js";
 export * from "./context/context-assembler.js";
 export * from "./context/context-manifest.js";
