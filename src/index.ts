@@ -66,6 +66,7 @@ export * from "./tools/builtin/shell-tool.js";
 export * from "./tools/builtin/reply-tools.js";
 export * from "./tools/builtin/task-tools.js";
 export * from "./tools/builtin/image-tools.js";
+export * from "./tools/builtin/document-tools.js";
 export * from "./messages/message-slot.js";
 export * from "./messages/reply-store.js";
 export * from "./messages/user-turn.js";
