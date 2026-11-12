@@ -23,6 +23,7 @@ import type { ShellProcessRunner } from "../tools/builtin/shell-tool.js";
 import { registerFileTools } from "../tools/builtin/file-tools.js";
 import { registerImageTools } from "../tools/builtin/image-tools.js";
 import { registerDocumentTools } from "../tools/builtin/document-tools.js";
+import type { DocumentAdapter } from "../tools/builtin/document-adapters.js";
 import { registerImageEditTool, type ImageEditProvider } from "../tools/builtin/image-edit-tool.js";
 import { registerReplyTools } from "../tools/builtin/reply-tools.js";
 import { registerShellTool } from "../tools/builtin/shell-tool.js";
@@ -56,6 +57,7 @@ export interface ProductKernelOptions {
   readonly projectIdentifier: string;
   readonly provider: LiteProvider;
   readonly imageProvider?: ImageEditProvider;
+  readonly documentAdapter?: DocumentAdapter;
   readonly profile?: LitePermissionProfile;
   readonly approvalHandler?: (request: ProductApprovalRequest) => Promise<LiteApprovalDecision>;
   readonly systemPromptText?: string;
@@ -248,7 +250,10 @@ export async function createProductKernel(options: ProductKernelOptions): Promis
   const registry = new ToolRegistry();
   registerFileTools(registry, { workspaceRoot: options.workspaceRootPath, stateRoot: paths.stateRoot, now });
   registerImageTools(registry, { workspaceRoot: options.workspaceRootPath });
-  registerDocumentTools(registry, { workspaceRoot: options.workspaceRootPath });
+  registerDocumentTools(registry, {
+    workspaceRoot: options.workspaceRootPath,
+    ...(options.documentAdapter === undefined ? {} : { adapter: options.documentAdapter }),
+  });
   if (options.imageProvider !== undefined) {
     registerImageEditTool(registry, {
       workspaceRoot: options.workspaceRootPath,

@@ -54,4 +54,28 @@ describe("document tools", () => {
     });
     expect(result.errorCode).toBe("LITE_DOCUMENT_ADAPTER_MISSING");
   });
+
+  it("uses a configured document adapter for office files", async () => {
+    const workspace = await createTestDirectory("document-tools-adapter");
+    directories.push(workspace);
+    await fs.writeFile(path.join(workspace, "report.docx"), Buffer.from("docx"));
+    const registry = new ToolRegistry();
+    registerDocumentTools(registry, {
+      workspaceRoot: workspace,
+      adapter: {
+        extensions: [".docx"],
+        read: async ({ extension }) => `converted ${extension}`,
+      },
+    });
+    const result = await new ToolExecutor({ registry }).execute({
+      callId: "c1",
+      toolName: "read_document",
+      argumentsJson: JSON.stringify({ path: "report.docx" }),
+    });
+    expect(result.ok).toBe(true);
+    expect(JSON.parse(result.outputText)).toMatchObject({
+      adapter: "command",
+      text: "converted .docx",
+    });
+  });
 });

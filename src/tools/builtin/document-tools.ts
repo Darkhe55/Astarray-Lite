@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { LiteError } from "../../contracts/errors.js";
+import type { DocumentAdapter } from "./document-adapters.js";
 import { assertNotSensitivePath, resolveWorkspacePath } from "./path-safety.js";
 import type { ToolRegistry } from "../tool-registry.js";
 
@@ -41,7 +42,11 @@ function asPath(argumentsValue: unknown): string {
 
 export function registerDocumentTools(
   registry: ToolRegistry,
-  options: { readonly workspaceRoot: string; readonly maximumBytes?: number },
+  options: {
+    readonly workspaceRoot: string;
+    readonly maximumBytes?: number;
+    readonly adapter?: DocumentAdapter;
+  },
 ): void {
   const maximumBytes = options.maximumBytes ?? 2 * 1024 * 1024;
 
@@ -64,10 +69,32 @@ export function registerDocumentTools(
       assertNotSensitivePath(relativePath);
       const extension = extensionOf(relativePath);
       if (CONVERTER_EXTENSIONS.has(extension)) {
-        throw new LiteError(
-          "LITE_DOCUMENT_ADAPTER_MISSING",
-          `no document adapter is installed for ${extension}`,
-        );
+        const adapter = options.adapter;
+        if (adapter === undefined || !adapter.extensions.includes(extension)) {
+          throw new LiteError(
+            "LITE_DOCUMENT_ADAPTER_MISSING",
+            `no document adapter is installed for ${extension}`,
+          );
+        }
+        const absolutePath = await resolveWorkspacePath({
+          workspaceRoot: options.workspaceRoot,
+          relativePath,
+        });
+        const stat = await fs.stat(absolutePath);
+        if (!stat.isFile()) throw new LiteError("LITE_INVALID_ARGUMENT", "path is not a file");
+        if (stat.size > maximumBytes) {
+          throw new LiteError("LITE_FILE_TOO_LARGE", "document is too large");
+        }
+        const text = await adapter.read({ absolutePath, extension });
+        return {
+          outputText: JSON.stringify({
+            path: relativePath,
+            extension,
+            sizeBytes: stat.size,
+            adapter: "command",
+            text,
+          }),
+        };
       }
       if (!TEXT_EXTENSIONS.has(extension)) {
         throw new LiteError(
