@@ -15,7 +15,7 @@ import {
 describe("lite public contracts", () => {
   it("exposes a stable package identity", () => {
     expect(LITE_PACKAGE_NAME).toBe("astarray-lite");
-    expect(LITE_PACKAGE_VERSION).toBe("0.0.0");
+    expect(LITE_PACKAGE_VERSION).toBe("0.1.0-alpha.1");
   });
 
   it("keeps error codes unique and non-empty", () => {

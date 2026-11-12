@@ -1,4 +1,5 @@
 import { LiteError } from "../contracts/errors.js";
+import { LITE_PACKAGE_VERSION } from "../contracts/package-version.js";
 import { promises as fs } from "node:fs";
 import type { LiteEventListener, LiteEventSubscription } from "../contracts/events.js";
 import type {
@@ -72,7 +73,7 @@ export class LiteKernelRuntime implements LiteKernelPort {
       type: "kernel.started",
       atIso: new Date().toISOString(),
       sessionId: this.options.sessionId,
-      kernelVersion: "0.0.0",
+      kernelVersion: LITE_PACKAGE_VERSION,
     });
   }
 

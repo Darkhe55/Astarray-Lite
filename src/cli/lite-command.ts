@@ -1,5 +1,6 @@
 import { createLiteApplication } from "../application/lite-application.js";
 import { LiteError } from "../contracts/errors.js";
+import { LITE_PACKAGE_VERSION } from "../contracts/package-version.js";
 import type { LiteProvider } from "../runtime/provider.js";
 import { OpenAiCompatibleProvider } from "../runtime/openai-provider.js";
 import { OpenAiImageProvider } from "../runtime/image-provider.js";
@@ -223,7 +224,7 @@ export async function runLiteCommand(
       const metrics = new LiteMetrics();
       metrics.setGauge("tasks.pending", sequence.pendingTaskIds.length);
       const bundle = buildDiagnosticBundle({
-        packageVersion: "0.0.0",
+        packageVersion: LITE_PACKAGE_VERSION,
         kernelStatus: state?.value.status ?? "idle",
         metrics: metrics.snapshot(),
         recentEvents: [],

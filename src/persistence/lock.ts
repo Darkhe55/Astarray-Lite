@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { LiteError } from "../contracts/errors.js";
+import { LITE_PACKAGE_VERSION } from "../contracts/package-version.js";
 import { writeJsonAtomic } from "./state-store.js";
 
 export interface LiteLockRecord {
@@ -72,7 +73,7 @@ export class LiteLock {
     this.lockFile = options.lockFile;
     this.staleAfterMilliseconds =
       options.staleAfterMilliseconds ?? DEFAULT_STALE_AFTER_MILLISECONDS;
-    this.kernelVersion = options.kernelVersion ?? "0.0.0";
+    this.kernelVersion = options.kernelVersion ?? LITE_PACKAGE_VERSION;
     this.now = options.now ?? (() => new Date());
   }
 

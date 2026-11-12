@@ -1,4 +1,5 @@
 import { LiteError } from "../contracts/errors.js";
+import { LITE_PACKAGE_VERSION } from "../contracts/package-version.js";
 
 export interface McpTransport {
   request(payload: unknown, timeoutMilliseconds: number): Promise<unknown>;
@@ -56,7 +57,7 @@ export class McpClient {
     await this.send("initialize", {
       protocolVersion: "2024-11-05",
       capabilities: {},
-      clientInfo: { name: "astarray-lite", version: "0.0.0" },
+      clientInfo: { name: "astarray-lite", version: LITE_PACKAGE_VERSION },
     });
     this.initialized = true;
   }

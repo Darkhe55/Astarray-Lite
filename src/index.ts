@@ -6,9 +6,7 @@
  * embedding host and the UI can compile against.
  */
 
-export const LITE_PACKAGE_NAME = "astarray-lite" as const;
-export const LITE_PACKAGE_VERSION = "0.0.0" as const;
-
+export * from "./contracts/package-version.js";
 export * from "./contracts/capabilities.js";
 export * from "./contracts/errors.js";
 export * from "./contracts/events.js";

@@ -1,4 +1,5 @@
 import { LiteError } from "../contracts/errors.js";
+import { LITE_PACKAGE_VERSION } from "../contracts/package-version.js";
 import type { LiteEventListener, LiteEventSubscription } from "../contracts/events.js";
 import type {
   LiteKernelPort,
@@ -233,7 +234,7 @@ class ProductKernelImpl implements ProductKernel {
   async exportDiagnostics(filePath: string): Promise<DiagnosticBundle> {
     const snapshot = await this.runtime.getSnapshot();
     const bundle = buildDiagnosticBundle({
-      packageVersion: "0.0.0",
+      packageVersion: LITE_PACKAGE_VERSION,
       kernelStatus: snapshot.status,
       sessionId: this.options.sessionId,
       projectIdentifier: this.options.projectIdentifier,
