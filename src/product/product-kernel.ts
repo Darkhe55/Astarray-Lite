@@ -78,6 +78,7 @@ export interface ProductKernel extends LiteKernelPort {
   runLoop(signal: AbortSignal): Promise<void>;
   queryGoals(): Promise<readonly LiteGoalProjection[]>;
   queryHistory(limit?: number): Promise<readonly ReplyRecord[]>;
+  describeFeatures(): { readonly images: boolean; readonly documents: boolean };
   listBackups(limit?: number): Promise<readonly FileBackupRecord[]>;
   restoreBackup(backupId: string): Promise<FileBackupRecord>;
   exportDiagnostics(filePath: string): Promise<DiagnosticBundle>;
@@ -209,6 +210,13 @@ class ProductKernelImpl implements ProductKernel {
   async queryHistory(limit = 50): Promise<readonly ReplyRecord[]> {
     const replies = await this.replyStore.readReplies();
     return replies.slice(-Math.max(0, limit));
+  }
+
+  describeFeatures(): { readonly images: boolean; readonly documents: boolean } {
+    return {
+      images: this.options.imageProvider !== undefined,
+      documents: true,
+    };
   }
 
   listBackups(limit?: number): Promise<readonly FileBackupRecord[]> {

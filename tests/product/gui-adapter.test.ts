@@ -53,7 +53,7 @@ describe("ProductGuiAdapter", () => {
     expect(history[0]?.text).toBe("done");
     expect(await adapter.queryGoals()).toEqual([]);
     expect(await adapter.queryCapabilities()).toMatchObject({
-      images: true,
+      images: false,
       documents: true,
       approvals: false,
     });

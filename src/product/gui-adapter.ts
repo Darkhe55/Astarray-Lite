@@ -78,10 +78,11 @@ export class ProductGuiAdapter implements ProductGuiPort {
   }
 
   async queryCapabilities(): Promise<ProductCapabilities> {
+    const features = this.kernel.describeFeatures();
     return {
       ...describeLiteCapabilities(),
-      images: true,
-      documents: true,
+      images: features.images,
+      documents: features.documents,
       approvals: this.approvals !== undefined,
     };
   }
