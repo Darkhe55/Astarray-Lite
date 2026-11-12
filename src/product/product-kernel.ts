@@ -21,6 +21,7 @@ import { createSafePreview } from "../permissions/safe-preview.js";
 import type { LiteProvider } from "../runtime/provider.js";
 import type { ShellProcessRunner } from "../tools/builtin/shell-tool.js";
 import { registerFileTools } from "../tools/builtin/file-tools.js";
+import { registerImageTools } from "../tools/builtin/image-tools.js";
 import { registerReplyTools } from "../tools/builtin/reply-tools.js";
 import { registerShellTool } from "../tools/builtin/shell-tool.js";
 import { registerTaskTools } from "../tools/builtin/task-tools.js";
@@ -208,6 +209,7 @@ export async function createProductKernel(options: ProductKernelOptions): Promis
   });
   const registry = new ToolRegistry();
   registerFileTools(registry, { workspaceRoot: options.workspaceRootPath, stateRoot: paths.stateRoot, now });
+  registerImageTools(registry, { workspaceRoot: options.workspaceRootPath });
   registerShellTool(registry, {
     workspaceRoot: options.workspaceRootPath,
     ...(options.shellRunner === undefined ? {} : { runner: options.shellRunner }),
