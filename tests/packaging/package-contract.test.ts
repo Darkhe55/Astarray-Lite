@@ -12,6 +12,7 @@ const packageJson = JSON.parse(
   private: boolean;
   files: string[];
   exports: Record<string, unknown>;
+  bin?: Record<string, string>;
   dependencies?: Record<string, string>;
   engines: { node: string };
 };
@@ -34,5 +35,6 @@ describe("package contract", () => {
     });
     expect(packageJson.dependencies ?? {}).toEqual({});
     expect(packageJson.engines.node).toBe(">=20");
+    expect(packageJson.bin).toEqual({ "astarray-lite": "./dist/cli/main.js" });
   });
 });
