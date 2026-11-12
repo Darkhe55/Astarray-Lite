@@ -143,4 +143,25 @@ describe("createProductKernel", () => {
     expect(text).not.toContain("authorization");
     await kernel.stop();
   });
+
+  it("recovers from a corrupt state file on start", async () => {
+    const { workspace, kernel } = await setup([]);
+    const stateRoot = path.join(workspace, ".astarray-lite");
+    await fs.mkdir(stateRoot, { recursive: true });
+    await fs.writeFile(path.join(stateRoot, "state.json"), "{broken", "utf8");
+    await fs.writeFile(
+      path.join(stateRoot, "state.json.bak"),
+      JSON.stringify({
+        schemaVersion: 1,
+        revision: 1,
+        status: "idle",
+        updatedAtIso: "2026-01-01T00:00:00.000Z",
+      }),
+      "utf8",
+    );
+    await kernel.start();
+    const repaired = await fs.readFile(path.join(stateRoot, "state.json"), "utf8");
+    expect(JSON.parse(repaired)).toMatchObject({ schemaVersion: 1, status: "idle" });
+    await kernel.stop();
+  });
 });
