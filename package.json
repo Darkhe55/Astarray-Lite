@@ -25,6 +25,7 @@
     "test": "vitest run",
     "verify:pack": "node scripts/verify-package.mjs",
     "release:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1",
+    "soak": "node scripts/soak.mjs",
     "check": "npm run typecheck && npm run test && npm run build && npm run verify:pack"
   },
   "devDependencies": {
