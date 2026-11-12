@@ -48,6 +48,9 @@ describe("ProductGuiAdapter", () => {
     });
     await kernel.runOnce();
     expect((await adapter.querySnapshot()).activeUserMessageId).toBeNull();
+    const history = await adapter.queryHistory();
+    expect(history).toHaveLength(1);
+    expect(history[0]?.text).toBe("done");
     expect(await adapter.queryGoals()).toEqual([]);
     expect(await adapter.queryCapabilities()).toMatchObject({
       images: true,

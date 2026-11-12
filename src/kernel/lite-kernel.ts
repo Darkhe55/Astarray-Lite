@@ -12,6 +12,7 @@ import { assembleContext } from "../context/context-assembler.js";
 import { estimateTokens } from "../context/token-budget.js";
 import type { UserInbox } from "../inbox/user-inbox.js";
 import type { MessageSlot } from "../messages/message-slot.js";
+import type { ReplyStore } from "../messages/reply-store.js";
 import type { UserTurnController } from "../messages/user-turn.js";
 import type { LitePaths } from "../persistence/lite-paths.js";
 import { ProviderTurnRunner, type ProviderTurnOutcome } from "../runtime/provider-turn-runner.js";
@@ -31,6 +32,7 @@ export interface LiteKernelRuntimeOptions extends LiteKernelOptions {
   readonly inbox: UserInbox;
   readonly messageSlot: MessageSlot;
   readonly userTurn: UserTurnController;
+  readonly replyStore?: ReplyStore;
   readonly taskStore?: TaskStore;
   readonly systemPromptVersion?: string;
   readonly systemPromptText?: string;
@@ -214,6 +216,11 @@ export class LiteKernelRuntime implements LiteKernelPort {
 
       if (this.options.messageSlot.getActive() !== null && result.text.trim() !== "") {
         this.options.userTurn.recordReply(result.text);
+        await this.options.replyStore?.appendReply({
+          text: result.text,
+          attachments: [],
+          resolvesActiveUserMessage: true,
+        });
         await this.options.userTurn.finalize();
       }
       this.emit({

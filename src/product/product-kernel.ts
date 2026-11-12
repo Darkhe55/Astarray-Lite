@@ -10,7 +10,7 @@ import { UserInbox } from "../inbox/user-inbox.js";
 import { LiteKernelRuntime, type LiteKernelTurnResult } from "../kernel/lite-kernel.js";
 import { ListenerLoop } from "../kernel/listener-loop.js";
 import { MessageSlot } from "../messages/message-slot.js";
-import { ReplyStore } from "../messages/reply-store.js";
+import { ReplyStore, type ReplyRecord } from "../messages/reply-store.js";
 import { UserTurnController } from "../messages/user-turn.js";
 import { resolveLitePaths, type LitePaths } from "../persistence/lite-paths.js";
 import { LiteLock } from "../persistence/lock.js";
@@ -77,6 +77,7 @@ export interface ProductKernel extends LiteKernelPort {
   runOnce(): Promise<LiteKernelTurnResult>;
   runLoop(signal: AbortSignal): Promise<void>;
   queryGoals(): Promise<readonly LiteGoalProjection[]>;
+  queryHistory(limit?: number): Promise<readonly ReplyRecord[]>;
   listBackups(limit?: number): Promise<readonly FileBackupRecord[]>;
   restoreBackup(backupId: string): Promise<FileBackupRecord>;
   exportDiagnostics(filePath: string): Promise<DiagnosticBundle>;
@@ -92,6 +93,7 @@ class ProductKernelImpl implements ProductKernel {
   private readonly lock: LiteLock;
   private readonly recoverOnStart: boolean;
   private readonly backupStore: FileBackupStore;
+  private readonly replyStore: ReplyStore;
   private readonly metrics = new LiteMetrics();
   private readonly recentEvents: LiteEvent[] = [];
 
@@ -104,6 +106,7 @@ class ProductKernelImpl implements ProductKernel {
     taskStore: TaskStore;
     lock: LiteLock;
     backupStore: FileBackupStore;
+    replyStore: ReplyStore;
   }) {
     this.options = input.options;
     this.paths = input.paths;
@@ -113,6 +116,7 @@ class ProductKernelImpl implements ProductKernel {
     this.taskStore = input.taskStore;
     this.lock = input.lock;
     this.backupStore = input.backupStore;
+    this.replyStore = input.replyStore;
     this.recoverOnStart = input.options.recoverOnStart ?? true;
     this.runtime.subscribe((event) => {
       this.recentEvents.push(event);
@@ -200,6 +204,11 @@ class ProductKernelImpl implements ProductKernel {
 
   async queryGoals(): Promise<readonly LiteGoalProjection[]> {
     return projectGoals(this.taskStore.list());
+  }
+
+  async queryHistory(limit = 50): Promise<readonly ReplyRecord[]> {
+    const replies = await this.replyStore.readReplies();
+    return replies.slice(-Math.max(0, limit));
   }
 
   listBackups(limit?: number): Promise<readonly FileBackupRecord[]> {
@@ -304,6 +313,7 @@ export async function createProductKernel(options: ProductKernelOptions): Promis
     inbox,
     messageSlot: slot,
     userTurn,
+    replyStore,
     taskStore,
     sessionId: options.sessionId,
     projectIdentifier: options.projectIdentifier,
@@ -335,5 +345,6 @@ export async function createProductKernel(options: ProductKernelOptions): Promis
     taskStore,
     lock,
     backupStore,
+    replyStore,
   });
 }
