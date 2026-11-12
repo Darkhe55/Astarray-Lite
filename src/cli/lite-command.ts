@@ -2,6 +2,7 @@ import { createLiteApplication } from "../application/lite-application.js";
 import { LiteError } from "../contracts/errors.js";
 import type { LiteProvider } from "../runtime/provider.js";
 import { OpenAiCompatibleProvider } from "../runtime/openai-provider.js";
+import { OpenAiImageProvider } from "../runtime/image-provider.js";
 import { createProductKernel } from "../product/product-kernel.js";
 
 export interface CliResult {
@@ -101,6 +102,16 @@ function providerFromEnvironment(): LiteProvider | undefined {
   });
 }
 
+function imageProviderFromEnvironment(): OpenAiImageProvider | undefined {
+  const apiKey = process.env["ASTRARRAY_LITE_API_KEY"];
+  if (apiKey === undefined || apiKey.trim() === "") return undefined;
+  return new OpenAiImageProvider({
+    baseUrl: process.env["ASTRARRAY_LITE_BASE_URL"] ?? "https://api.openai.com/v1",
+    apiKey,
+    modelIdentifier: process.env["ASTRARRAY_LITE_IMAGE_MODEL"] ?? "gpt-image-1",
+  });
+}
+
 export async function runLiteCommand(
   argv: readonly string[],
   options: LiteCommandOptions = {},
@@ -153,11 +164,13 @@ export async function runLiteCommand(
           "set ASTRARRAY_LITE_API_KEY (and optionally ASTRARRAY_LITE_BASE_URL/ASTRARRAY_LITE_MODEL)",
         );
       }
+      const imageProvider = imageProviderFromEnvironment();
       const kernel = await createProductKernel({
         workspaceRootPath: options.cwd ?? ".",
         sessionId: options.sessionId ?? "cli-session",
         projectIdentifier: "cli-project",
         provider,
+        ...(imageProvider === undefined ? {} : { imageProvider }),
         approvalHandler: async () => (parsed.allowTools ? "allow-session" : "deny"),
       });
       await kernel.start();
