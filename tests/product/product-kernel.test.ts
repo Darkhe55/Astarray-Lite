@@ -129,4 +129,18 @@ describe("createProductKernel", () => {
     expect(await kernel.listBackups()).toHaveLength(2);
     await kernel.stop();
   });
+
+  it("exports a redacted diagnostics bundle", async () => {
+    const { workspace, kernel } = await setup([{ kind: "text", text: "ok" }]);
+    await kernel.start();
+    await kernel.submitUserMessage({ text: "hello" });
+    await kernel.runOnce();
+    const file = path.join(workspace, "diagnostics.json");
+    const bundle = await kernel.exportDiagnostics(file);
+    expect(bundle).toMatchObject({ packageName: "astarray-lite", kernelStatus: "idle" });
+    const text = await fs.readFile(file, "utf8");
+    expect(text).not.toContain(workspace);
+    expect(text).not.toContain("authorization");
+    await kernel.stop();
+  });
 });

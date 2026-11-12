@@ -32,6 +32,13 @@ import { ToolRegistry } from "../tools/tool-registry.js";
 import { TaskSequenceStore } from "../tasks/task-sequence-store.js";
 import { TaskStore } from "../tasks/task-store.js";
 import { projectGoals, type LiteGoalProjection } from "../facade/goal-projection.js";
+import { LiteMetrics } from "../observability/metrics.js";
+import {
+  buildDiagnosticBundle,
+  writeDiagnosticBundle,
+  type DiagnosticBundle,
+} from "../observability/diagnostic-bundle.js";
+import type { LiteEvent } from "../contracts/events.js";
 
 export type LiteApprovalDecision = "allow-once" | "allow-session" | "deny";
 
@@ -68,6 +75,7 @@ export interface ProductKernel extends LiteKernelPort {
   queryGoals(): Promise<readonly LiteGoalProjection[]>;
   listBackups(limit?: number): Promise<readonly FileBackupRecord[]>;
   restoreBackup(backupId: string): Promise<FileBackupRecord>;
+  exportDiagnostics(filePath: string): Promise<DiagnosticBundle>;
 }
 
 class ProductKernelImpl implements ProductKernel {
@@ -80,6 +88,8 @@ class ProductKernelImpl implements ProductKernel {
   private readonly lock: LiteLock;
   private readonly recoverOnStart: boolean;
   private readonly backupStore: FileBackupStore;
+  private readonly metrics = new LiteMetrics();
+  private readonly recentEvents: LiteEvent[] = [];
 
   constructor(input: {
     options: ProductKernelOptions;
@@ -100,6 +110,10 @@ class ProductKernelImpl implements ProductKernel {
     this.lock = input.lock;
     this.backupStore = input.backupStore;
     this.recoverOnStart = input.options.recoverOnStart ?? true;
+    this.runtime.subscribe((event) => {
+      this.recentEvents.push(event);
+      if (this.recentEvents.length > 100) this.recentEvents.shift();
+    });
   }
 
   async start(): Promise<void> {
@@ -160,8 +174,15 @@ class ProductKernelImpl implements ProductKernel {
     return this.runtime.subscribe(listener);
   }
 
-  runOnce(): Promise<LiteKernelTurnResult> {
-    return this.runtime.runOnce();
+  async runOnce(): Promise<LiteKernelTurnResult> {
+    const startedAt = performance.now();
+    const result = await this.runtime.runOnce();
+    if (result.outcome !== "idle") {
+      this.metrics.increment("turns");
+      this.metrics.increment(`turns.${result.outcome}`);
+      this.metrics.observe("turn.duration.ms", performance.now() - startedAt);
+    }
+    return result;
   }
 
   async runLoop(signal: AbortSignal): Promise<void> {
@@ -186,6 +207,20 @@ class ProductKernelImpl implements ProductKernel {
       backupId,
       workspaceRoot: this.paths.workspaceRoot,
     });
+  }
+
+  async exportDiagnostics(filePath: string): Promise<DiagnosticBundle> {
+    const snapshot = await this.runtime.getSnapshot();
+    const bundle = buildDiagnosticBundle({
+      packageVersion: "0.0.0",
+      kernelStatus: snapshot.status,
+      sessionId: this.options.sessionId,
+      projectIdentifier: this.options.projectIdentifier,
+      metrics: this.metrics.snapshot(),
+      recentEvents: this.recentEvents,
+    });
+    await writeDiagnosticBundle(filePath, bundle);
+    return bundle;
   }
 }
 
