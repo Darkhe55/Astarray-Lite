@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$Tarball,
-  [string]$InstallDir = (Join-Path $env:LOCALAPPDATA "AstarrayLite")
+  [string]$InstallDir = (Join-Path $env:LOCALAPPDATA "AstarrayLite"),
+  [string]$Sha256 = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,6 +19,18 @@ if (-not (Test-Path -LiteralPath $Tarball)) {
 }
 
 $resolvedTarball = (Resolve-Path -LiteralPath $Tarball).Path
+$actualHash = (Get-FileHash -LiteralPath $resolvedTarball -Algorithm SHA256).Hash
+if ($Sha256 -ne "") {
+  $expectedHash = $Sha256 -replace "^sha256:", ""
+  if ($actualHash -ne $expectedHash.ToUpperInvariant()) {
+    throw "SHA-256 mismatch. Expected $expectedHash but got $actualHash"
+  }
+  Write-Host "SHA-256 verified: $actualHash"
+}
+
+Write-Host "UNSIGNED BETA: this package has no Authenticode certificate." -ForegroundColor Yellow
+Write-Host "Windows may show 'Unknown publisher'. Verify the SHA-256 before installing." -ForegroundColor Yellow
+
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
 Write-Host "Installing Astarray Lite into $InstallDir"
