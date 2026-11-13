@@ -22,6 +22,7 @@ export * from "./application/options.js";
 export * from "./cli/lite-command.js";
 export * from "./product/product-kernel.js";
 export * from "./product/credential-store.js";
+export * from "./product/windows-credential-store.js";
 export * from "./product/config.js";
 export * from "./product/approval-broker.js";
 export * from "./product/gui-adapter.js";
