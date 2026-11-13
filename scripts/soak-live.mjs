@@ -1,5 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
+import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { createProductKernel } from "../dist/product/product-kernel.js";
@@ -45,7 +44,12 @@ if (fake) {
   });
 }
 
-const workspace = await mkdtemp(path.join(os.tmpdir(), "astarray-lite-soak-live-"));
+const workspaceArgument = argument("--workspace", "");
+const workspace =
+  workspaceArgument !== ""
+    ? path.resolve(workspaceArgument)
+    : path.join(process.cwd(), ".tmp", `astarray-lite-soak-live-${process.pid}`);
+await mkdir(workspace, { recursive: true });
 const kernel = await createProductKernel({
   workspaceRootPath: workspace,
   sessionId: "soak-live",
