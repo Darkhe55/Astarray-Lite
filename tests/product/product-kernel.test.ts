@@ -229,6 +229,54 @@ describe("createProductKernel", () => {
     await kernel.stop();
   });
 
+  it("keeps external kernel state across restarts", async () => {
+    const workspace = await createTestDirectory("product-restore-workspace");
+    const stateDirectory = await createTestDirectory("product-restore-state");
+    directories.push(workspace, stateDirectory);
+    const options = {
+      workspaceRootPath: workspace,
+      stateDirectory,
+      allowExternalStateDirectory: true,
+      sessionId: "session-restore",
+      projectIdentifier: "project-restore",
+      approvalHandler: async () => "allow-session" as const,
+    };
+    const first = await createProductKernel({
+      ...options,
+      provider: new FakeProvider([
+        {
+          kind: "tool-calls",
+          calls: [
+            {
+              callId: "call-1",
+              toolName: "task_insert",
+              argumentsJson: JSON.stringify({
+                position: "bottom",
+                title: "persisted task",
+                objective: "survive restart",
+              }),
+            },
+          ],
+        },
+        { kind: "text", text: "queued" },
+      ]),
+    });
+    await first.start();
+    await first.submitUserMessage({ text: "create a task" });
+    expect((await first.runOnce()).outcome).toBe("completed");
+    await first.stop();
+    expect(await fs.readdir(workspace)).toEqual([]);
+    expect(await fs.readdir(stateDirectory)).toContain("sequence.json");
+
+    const second = await createProductKernel({
+      ...options,
+      provider: new FakeProvider([]),
+    });
+    await second.start();
+    await second.stop();
+    expect(await fs.readdir(stateDirectory)).toContain("state.json");
+  });
+
   it("rejects a second instance on the same workspace", async () => {
     const { workspace, kernel } = await setup([]);
     await kernel.start();
