@@ -112,4 +112,20 @@ describe("file tools", () => {
     const binary = await call(executor, "read_file", { path: "binary.bin" });
     expect(binary.errorCode).toBe("LITE_FILE_BINARY_UNSUPPORTED");
   });
+
+  it("blocks the kernel state directory", async () => {
+    const { stateRoot, executor } = await setup();
+    await fs.mkdir(stateRoot, { recursive: true });
+    await fs.writeFile(path.join(stateRoot, "state.json"), "{}", "utf8");
+
+    const read = await call(executor, "read_file", { path: ".astarray-lite/state.json" });
+    expect(read.errorCode).toBe("LITE_PATH_OUT_OF_WORKSPACE");
+    const list = await call(executor, "list_directory", { path: ".astarray-lite" });
+    expect(list.errorCode).toBe("LITE_PATH_OUT_OF_WORKSPACE");
+    const write = await call(executor, "write_file", {
+      path: ".astarray-lite/state.json",
+      content: "{}",
+    });
+    expect(write.errorCode).toBe("LITE_PATH_OUT_OF_WORKSPACE");
+  });
 });

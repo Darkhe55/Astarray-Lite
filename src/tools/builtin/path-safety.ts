@@ -82,3 +82,14 @@ export function assertNotSensitivePath(filePath: string): void {
     throw new LiteError("LITE_SENSITIVE_CONTENT_BLOCKED", "sensitive file access is blocked");
   }
 }
+
+export function assertNotStatePath(filePath: string, stateRoot: string): void {
+  const root = path.resolve(stateRoot);
+  const target = path.resolve(filePath);
+  if (isInside(root, target)) {
+    throw new LiteError(
+      "LITE_PATH_OUT_OF_WORKSPACE",
+      "kernel state directory is not accessible to workspace tools",
+    );
+  }
+}

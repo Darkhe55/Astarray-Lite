@@ -6,7 +6,7 @@ import { LiteError } from "../../contracts/errors.js";
 import type { ToolRegistry } from "../tool-registry.js";
 import type { LiteToolHandlerResult, LiteToolSpec } from "../tool-types.js";
 import { FileBackupStore } from "./backup-store.js";
-import { assertNotSensitivePath, resolveWorkspacePath } from "./path-safety.js";
+import { assertNotSensitivePath, assertNotStatePath, resolveWorkspacePath } from "./path-safety.js";
 
 const DEFAULT_MAXIMUM_READ_BYTES = 1024 * 1024;
 const DEFAULT_MAXIMUM_WRITE_BYTES = 1024 * 1024;
@@ -57,6 +57,7 @@ function optionalInteger(record: Record<string, unknown>, key: string): number |
 
 async function readTextFile(input: {
   readonly workspaceRoot: string;
+  readonly stateRoot: string;
   readonly relativePath: string;
   readonly maximumBytes: number;
 }): Promise<{ readonly absolutePath: string; readonly text: string; readonly sizeBytes: number }> {
@@ -65,6 +66,7 @@ async function readTextFile(input: {
     relativePath: input.relativePath,
   });
   assertNotSensitivePath(absolutePath);
+  assertNotStatePath(absolutePath, input.stateRoot);
 
   let stat;
   try {
@@ -135,6 +137,7 @@ function buildReadFileTool(options: Required<FileToolOptions>): LiteToolSpec {
       const limit = Math.min(optionalInteger(record, "limit") ?? DEFAULT_READ_LIMIT_LINES, MAXIMUM_READ_LIMIT_LINES);
       const file = await readTextFile({
         workspaceRoot: options.workspaceRoot,
+        stateRoot: options.stateRoot,
         relativePath,
         maximumBytes: options.maximumReadBytes,
       });
@@ -173,6 +176,7 @@ function buildListDirectoryTool(options: Required<FileToolOptions>): LiteToolSpe
         relativePath,
       });
       assertNotSensitivePath(absolutePath);
+      assertNotStatePath(absolutePath, options.stateRoot);
       let stat;
       try {
         stat = await fs.lstat(absolutePath);
@@ -232,6 +236,7 @@ function buildWriteFileTool(options: Required<FileToolOptions>, backupStore: Fil
         relativePath,
       });
       assertNotSensitivePath(absolutePath);
+      assertNotStatePath(absolutePath, options.stateRoot);
 
       let backupId: string | undefined;
       let existing = false;
@@ -298,6 +303,7 @@ function buildReplaceInFileTool(options: Required<FileToolOptions>, backupStore:
       const expected = optionalInteger(record, "expectedReplacements");
       const file = await readTextFile({
         workspaceRoot: options.workspaceRoot,
+        stateRoot: options.stateRoot,
         relativePath,
         maximumBytes: options.maximumReadBytes,
       });
