@@ -329,16 +329,21 @@ export class LiteKernelRuntime implements LiteKernelPort {
       const tools = this.options.registry.getContextDefinitions();
       const taskPrompt = [
         "你正在执行后台任务。不要回复用户，直接使用工具推进任务。",
+        "当前任务已经是 active；不要调用 task_read_top、task_list、task_update 或 task_reorder。",
         `任务: ${task.title}`,
         `目标: ${task.objective}`,
         task.constraints.length === 0 ? "" : `约束:\n- ${task.constraints.join("\n- ")}`,
         task.acceptanceCriteria.length === 0
           ? ""
-          : `验收标准:\n- ${task.acceptanceCriteria.join("\n- ")}`,
+          : `验收标准（必须逐项覆盖，并用 evidenceRef 指向证据）:\n${task.acceptanceCriteria
+              .map((criterion, index) => `- [${index}] ${criterion}`)
+              .join("\n")}`,
         task.progressNotes.length === 0
           ? ""
           : `已有进度:\n${task.progressNotes.map((note) => `- ${note.note}`).join("\n")}`,
-        "完成时调用 task_complete，提供 summary、evidence、criteriaResults 和 selfAssessment。",
+        "完成时只调用一次 task_complete，示例参数：",
+        '{"summary":"至少10个字符的完成摘要","selfAssessment":"good","evidence":[{"kind":"note","reference":"evidence-1","summary":"证据说明"}],"criteriaResults":[{"criterionIndex":0,"result":"met","evidenceRef":"evidence-1"}]}',
+        "每个 met 验收项都必须有 evidenceRef，且该 reference 必须出现在 evidence 中。",
       ]
         .filter((line) => line !== "")
         .join("\n");
