@@ -40,10 +40,19 @@ export interface LiteKernelRuntimeOptions extends LiteKernelOptions {
   readonly maxOutputTokens?: number;
 }
 
+export interface LiteKernelToolCall {
+  readonly toolName: string;
+  readonly argumentsJson: string;
+  readonly outputText: string;
+  readonly isError: boolean;
+}
+
 export interface LiteKernelTurnResult {
   readonly outcome: ProviderTurnOutcome | "idle";
   readonly text: string;
   readonly toolCallCount: number;
+  readonly reasoning?: string;
+  readonly toolCalls?: readonly LiteKernelToolCall[];
   readonly errorCode?: string;
 }
 
@@ -235,6 +244,17 @@ export class LiteKernelRuntime implements LiteKernelPort {
         outcome: result.outcome,
         text: result.text,
         toolCallCount: result.toolCalls.length,
+        ...(result.reasoning === undefined ? {} : { reasoning: result.reasoning }),
+        ...(result.toolCalls.length === 0
+          ? {}
+          : {
+              toolCalls: result.toolCalls.map((record) => ({
+                toolName: record.call.toolName,
+                argumentsJson: record.call.argumentsJson,
+                outputText: record.result.outputText,
+                isError: record.result.isError,
+              })),
+            }),
         ...(result.errorCode === undefined ? {} : { errorCode: result.errorCode }),
       };
     } catch (error) {

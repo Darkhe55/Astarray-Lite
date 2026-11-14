@@ -170,6 +170,8 @@ export class OpenAiCompatibleProvider implements LiteProvider {
         readonly choices?: readonly {
           readonly message?: {
             readonly content?: string | null;
+            readonly reasoning_content?: string | null;
+            readonly reasoning?: string | null;
             readonly tool_calls?: readonly {
               readonly id?: string;
               readonly function?: { readonly name?: string; readonly arguments?: string };
@@ -201,15 +203,22 @@ export class OpenAiCompatibleProvider implements LiteProvider {
         toolName: call.function?.name ?? "",
         argumentsJson: call.function?.arguments ?? "{}",
       }));
+      const reasoning = (choice.message?.reasoning_content ?? choice.message?.reasoning ?? "").trim();
       if (calls.length > 0) {
         return {
           kind: "tool-calls",
           calls,
           text: choice.message?.content ?? "",
+          ...(reasoning === "" ? {} : { reasoning }),
           usage,
         };
       }
-      return { kind: "text", text: choice.message?.content ?? "", usage };
+      return {
+        kind: "text",
+        text: choice.message?.content ?? "",
+        ...(reasoning === "" ? {} : { reasoning }),
+        usage,
+      };
     } catch {
       return {
         kind: "error",

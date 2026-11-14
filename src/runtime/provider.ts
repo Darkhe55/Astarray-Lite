@@ -42,12 +42,14 @@ export type LiteProviderResponse =
   | {
       readonly kind: "text";
       readonly text: string;
+      readonly reasoning?: string;
       readonly usage?: LiteTokenUsage;
     }
   | {
       readonly kind: "tool-calls";
       readonly calls: readonly LiteToolCall[];
       readonly text?: string;
+      readonly reasoning?: string;
       readonly usage?: LiteTokenUsage;
     }
   | {

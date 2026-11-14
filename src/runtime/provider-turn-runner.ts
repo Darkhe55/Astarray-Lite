@@ -46,6 +46,7 @@ export interface ProviderTurnResult {
   readonly usage: LiteTokenUsage;
   readonly toolCalls: readonly LiteToolCallRecord[];
   readonly iterations: number;
+  readonly reasoning?: string;
   readonly errorCode?: string;
   readonly errorMessage?: string;
 }
@@ -77,6 +78,7 @@ function result(
   iterations: number,
   errorCode?: string,
   errorMessage?: string,
+  reasoning?: string,
 ): ProviderTurnResult {
   return {
     outcome,
@@ -84,6 +86,7 @@ function result(
     usage,
     toolCalls,
     iterations,
+    ...(reasoning === undefined || reasoning === "" ? {} : { reasoning }),
     ...(errorCode === undefined ? {} : { errorCode }),
     ...(errorMessage === undefined ? {} : { errorMessage }),
   };
@@ -115,6 +118,7 @@ export class ProviderTurnRunner {
     const toolCalls: LiteToolCallRecord[] = [];
     let usage = ZERO_USAGE;
     let iterations = 0;
+    let reasoning = "";
 
     for (let iteration = 0; iteration < this.maxIterations; iteration += 1) {
       if (isAborted(input.signal)) {
@@ -147,6 +151,9 @@ export class ProviderTurnRunner {
       }
 
       usage = addUsage(usage, response.kind === "error" ? undefined : response.usage);
+      if (response.kind !== "error" && response.reasoning !== undefined) {
+        reasoning += response.reasoning;
+      }
 
       if (response.kind === "error") {
         return result(
@@ -160,10 +167,10 @@ export class ProviderTurnRunner {
         );
       }
       if (response.kind === "text") {
-        return result("completed", response.text, usage, toolCalls, iterations);
+        return result("completed", response.text, usage, toolCalls, iterations, undefined, undefined, reasoning);
       }
       if (response.calls.length === 0) {
-        return result("completed", response.text ?? "", usage, toolCalls, iterations);
+        return result("completed", response.text ?? "", usage, toolCalls, iterations, undefined, undefined, reasoning);
       }
 
       messages.push({
