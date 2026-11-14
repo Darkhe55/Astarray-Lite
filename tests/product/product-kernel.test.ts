@@ -121,6 +121,66 @@ describe("createProductKernel", () => {
     await kernel.stop();
   });
 
+  it("preempts a task turn when a user message arrives", async () => {
+    const workspace = await createTestDirectory("product-preempt");
+    directories.push(workspace);
+    let kernelRef: Awaited<ReturnType<typeof createProductKernel>> | undefined;
+    let interrupted = false;
+    const provider = new FakeProvider(
+      [
+        {
+          kind: "tool-calls",
+          calls: [
+            {
+              callId: "call-1",
+              toolName: "task_insert",
+              argumentsJson: JSON.stringify({
+                position: "bottom",
+                title: "background task",
+                objective: "finish background work",
+                acceptanceCriteria: ["work finished"],
+              }),
+            },
+          ],
+        },
+        { kind: "text", text: "task queued" },
+        {
+          kind: "tool-calls",
+          calls: [{ callId: "call-2", toolName: "task_list", argumentsJson: "{}" }],
+        },
+        { kind: "text", text: "user handled" },
+        { kind: "text", text: "task resumed" },
+      ],
+      {
+        beforeRespond: async (request) => {
+          const isTaskTurn =
+            request.messages[0]?.role === "system" &&
+            String(request.messages[1]?.content ?? "").includes("后台任务");
+          if (isTaskTurn && !interrupted && kernelRef !== undefined) {
+            interrupted = true;
+            await kernelRef.submitUserMessage({ text: "插入的用户消息" });
+          }
+        },
+      },
+    );
+    const kernel = await createProductKernel({
+      workspaceRootPath: workspace,
+      sessionId: "session-preempt",
+      projectIdentifier: "project-1",
+      provider,
+      approvalHandler: async () => "allow-session",
+      listenerTickIntervalMilliseconds: 100,
+    });
+    kernelRef = kernel;
+    await kernel.start();
+    await kernel.submitUserMessage({ text: "create a background task" });
+    expect((await kernel.runOnce()).outcome).toBe("completed");
+    expect((await kernel.runOnce()).outcome).toBe("preempted");
+    expect(await kernel.queryTasks()).toHaveLength(1);
+    expect((await kernel.runOnce()).outcome).toBe("completed");
+    await kernel.stop();
+  });
+
   it("rejects a second instance on the same workspace", async () => {
     const { workspace, kernel } = await setup([]);
     await kernel.start();
