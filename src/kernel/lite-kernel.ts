@@ -168,6 +168,11 @@ export class LiteKernelRuntime implements LiteKernelPort {
 
     this.status = "running";
     const turnId = `trn_${Date.now()}`;
+    this.emit({
+      type: "user-message.admitted",
+      atIso: new Date().toISOString(),
+      messageId: active.messageId,
+    });
     this.emit({ type: "turn.started", atIso: new Date().toISOString(), turnId, kind: "user" });
     try {
       const tools = this.options.registry.getContextDefinitions();
@@ -231,7 +236,15 @@ export class LiteKernelRuntime implements LiteKernelPort {
           attachments: [],
           resolvesActiveUserMessage: true,
         });
-        await this.options.userTurn.finalize();
+        const resolved = await this.options.userTurn.finalize();
+        if (resolved !== null && resolved.status === "resolved") {
+          this.emit({
+            type: "user-message.resolved",
+            atIso: new Date().toISOString(),
+            messageId: resolved.messageId,
+            disposition: resolved.disposition ?? "answered",
+          });
+        }
       }
       this.emit({
         type: "turn.finished",
@@ -239,6 +252,18 @@ export class LiteKernelRuntime implements LiteKernelPort {
         turnId,
         outcome: result.outcome === "completed" ? "completed" : "failed",
         durationMs: 0,
+        ...(result.text === "" ? {} : { text: result.text }),
+        ...(result.reasoning === undefined ? {} : { reasoning: result.reasoning }),
+        ...(result.toolCalls === undefined
+          ? {}
+          : {
+              toolCalls: result.toolCalls.map((record) => ({
+                toolName: record.call.toolName,
+                argumentsJson: record.call.argumentsJson,
+                outputText: record.result.outputText,
+                isError: record.result.isError,
+              })),
+            }),
       });
       return {
         outcome: result.outcome,

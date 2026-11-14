@@ -67,6 +67,14 @@ export type LiteEvent = LiteEventMetadata & (
       readonly turnId: string;
       readonly outcome: LiteTurnOutcome;
       readonly durationMs: number;
+      readonly text?: string;
+      readonly reasoning?: string;
+      readonly toolCalls?: readonly {
+        readonly toolName: string;
+        readonly argumentsJson: string;
+        readonly outputText: string;
+        readonly isError: boolean;
+      }[];
     }
   | {
       readonly type: "provider.request";
