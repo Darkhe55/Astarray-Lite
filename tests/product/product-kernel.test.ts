@@ -74,6 +74,53 @@ describe("createProductKernel", () => {
     await kernel.stop();
   });
 
+  it("runs a queued task when the user inbox is empty", async () => {
+    const { kernel } = await setup([
+      {
+        kind: "tool-calls",
+        calls: [
+          {
+            callId: "call-1",
+            toolName: "task_insert",
+            argumentsJson: JSON.stringify({
+              position: "bottom",
+              title: "background task",
+              objective: "finish the background work",
+              acceptanceCriteria: ["work is finished"],
+            }),
+          },
+        ],
+      },
+      { kind: "text", text: "task queued" },
+      {
+        kind: "tool-calls",
+        calls: [
+          {
+            callId: "call-2",
+            toolName: "task_complete",
+            argumentsJson: JSON.stringify({
+              summary: "background work finished",
+              selfAssessment: "good",
+              evidence: [{ kind: "note", reference: "note-1", summary: "finished" }],
+              criteriaResults: [
+                { criterionIndex: 0, result: "met", evidenceRef: "note-1" },
+              ],
+            }),
+          },
+        ],
+      },
+      { kind: "text", text: "task turn complete" },
+    ]);
+    await kernel.start();
+    await kernel.submitUserMessage({ text: "create a background task" });
+    const first = await kernel.runOnce();
+    expect(first.outcome).toBe("completed");
+    expect(await kernel.queryTasks()).toHaveLength(1);
+    expect((await kernel.runOnce()).outcome).toBe("completed");
+    expect(await kernel.queryTasks()).toHaveLength(0);
+    await kernel.stop();
+  });
+
   it("rejects a second instance on the same workspace", async () => {
     const { workspace, kernel } = await setup([]);
     await kernel.start();

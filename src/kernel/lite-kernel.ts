@@ -67,6 +67,8 @@ type RuntimeStatus = "booting" | "idle" | "running" | "paused" | "stopped";
 export class LiteKernelRuntime implements LiteKernelPort {
   private readonly options: LiteKernelRuntimeOptions;
   private readonly listeners = new Set<LiteEventListener>();
+  private taskCooldownTaskId: string | null = null;
+  private taskCooldownUntil = 0;
   private status: RuntimeStatus = "booting";
 
   constructor(options: LiteKernelRuntimeOptions) {
@@ -164,7 +166,11 @@ export class LiteKernelRuntime implements LiteKernelPort {
     if (active === null) {
       active = await this.options.userTurn.admitNext();
     }
-    if (active === null) return { outcome: "idle", text: "", toolCallCount: 0 };
+    if (active === null) {
+      const taskResult = await this.runTaskTurnIfReady();
+      if (taskResult !== null) return taskResult;
+      return { outcome: "idle", text: "", toolCallCount: 0 };
+    }
 
     this.status = "running";
     const turnId = `trn_${Date.now()}`;
@@ -281,6 +287,126 @@ export class LiteKernelRuntime implements LiteKernelPort {
               })),
             }),
         ...(result.errorCode === undefined ? {} : { errorCode: result.errorCode }),
+      };
+    } catch (error) {
+      const code = error instanceof LiteError ? error.code : "LITE_INTERNAL_ERROR";
+      const message = error instanceof Error ? error.message : String(error);
+      this.emit({ type: "error", atIso: new Date().toISOString(), code, message });
+      return { outcome: "error", text: "", toolCallCount: 0, errorCode: code };
+    } finally {
+      if (this.status === "running") this.status = "idle";
+    }
+  }
+
+  private async runTaskTurnIfReady(): Promise<LiteKernelTurnResult | null> {
+    const taskStore = this.options.taskStore;
+    if (taskStore === undefined) return null;
+    let task = taskStore.list()[0];
+    if (task === undefined) {
+      this.taskCooldownTaskId = null;
+      return null;
+    }
+    if (this.taskCooldownTaskId === task.taskId && Date.now() < this.taskCooldownUntil) {
+      return null;
+    }
+    if (taskStore.getSequence().activeTaskId === null) {
+      try {
+        task = await taskStore.readTop();
+      } catch {
+        return null;
+      }
+    }
+
+    this.status = "running";
+    const turnId = `trn_${Date.now()}`;
+    this.emit({ type: "turn.started", atIso: new Date().toISOString(), turnId, kind: "task" });
+    try {
+      const tools = this.options.registry.getContextDefinitions();
+      const taskPrompt = [
+        "你正在执行后台任务。不要回复用户，直接使用工具推进任务。",
+        `任务: ${task.title}`,
+        `目标: ${task.objective}`,
+        task.constraints.length === 0 ? "" : `约束:\n- ${task.constraints.join("\n- ")}`,
+        task.acceptanceCriteria.length === 0
+          ? ""
+          : `验收标准:\n- ${task.acceptanceCriteria.join("\n- ")}`,
+        task.progressNotes.length === 0
+          ? ""
+          : `已有进度:\n${task.progressNotes.map((note) => `- ${note.note}`).join("\n")}`,
+        "完成时调用 task_complete，提供 summary、evidence、criteriaResults 和 selfAssessment。",
+      ]
+        .filter((line) => line !== "")
+        .join("\n");
+      const runner = new ProviderTurnRunner();
+      const result = await runner.run({
+        provider: this.options.provider,
+        messages: [
+          {
+            role: "system",
+            content:
+              this.options.systemPromptText ??
+              "You are the Astarray Lite single-agent kernel.",
+          },
+          { role: "user", content: taskPrompt },
+        ],
+        tools,
+        maxOutputTokens: this.options.maxOutputTokens ?? 4_096,
+        executeTool: async (call, signal) => {
+          const executed = await this.options.toolExecutor.execute({
+            callId: call.callId,
+            toolName: call.toolName,
+            argumentsJson: call.argumentsJson,
+            ...(signal === undefined ? {} : { signal }),
+          });
+          return {
+            callId: call.callId,
+            toolName: call.toolName,
+            outputText: executed.outputText || executed.errorMessage || "",
+            isError: !executed.ok,
+          };
+        },
+      });
+      this.emit({
+        type: "turn.finished",
+        atIso: new Date().toISOString(),
+        turnId,
+        outcome: result.outcome === "completed" ? "completed" : "failed",
+        durationMs: 0,
+        ...(result.text === "" ? {} : { text: result.text }),
+        ...(result.reasoning === undefined ? {} : { reasoning: result.reasoning }),
+        ...(result.toolCalls.length === 0
+          ? {}
+          : {
+              toolCalls: result.toolCalls.map((record) => ({
+                toolName: record.call.toolName,
+                argumentsJson: record.call.argumentsJson,
+                outputText: record.result.outputText,
+                isError: record.result.isError,
+              })),
+            }),
+      });
+      const remaining = taskStore.list()[0];
+      if (remaining !== undefined && remaining.taskId === task.taskId) {
+        this.taskCooldownTaskId = task.taskId;
+        this.taskCooldownUntil = Date.now() + 3_000;
+      } else {
+        this.taskCooldownTaskId = null;
+      }
+      return {
+        outcome: result.outcome,
+        text: result.text,
+        toolCallCount: result.toolCalls.length,
+        ...(result.reasoning === undefined ? {} : { reasoning: result.reasoning }),
+        ...(result.toolCalls.length === 0
+          ? {}
+          : {
+              toolCalls: result.toolCalls.map((record) => ({
+                toolName: record.call.toolName,
+                argumentsJson: record.call.argumentsJson,
+                outputText: record.result.outputText,
+                isError: record.result.isError,
+              })),
+            }),
       };
     } catch (error) {
       const code = error instanceof LiteError ? error.code : "LITE_INTERNAL_ERROR";
