@@ -27,6 +27,7 @@ export interface ProviderTurnInput {
   readonly maxOutputTokens: number;
   readonly executeTool: LiteToolExecutor;
   readonly signal?: AbortSignal;
+  readonly shouldPreempt?: () => boolean;
 }
 
 export interface LiteToolCallRecord {
@@ -38,7 +39,8 @@ export type ProviderTurnOutcome =
   | "completed"
   | "error"
   | "max-iterations"
-  | "aborted";
+  | "aborted"
+  | "preempted";
 
 export interface ProviderTurnResult {
   readonly outcome: ProviderTurnOutcome;
@@ -123,6 +125,18 @@ export class ProviderTurnRunner {
     for (let iteration = 0; iteration < this.maxIterations; iteration += 1) {
       if (isAborted(input.signal)) {
         return result("aborted", "", usage, toolCalls, iterations, "LITE_TURN_CANCELLED", "turn aborted");
+      }
+      if (input.shouldPreempt?.() === true) {
+        return result(
+          "preempted",
+          "",
+          usage,
+          toolCalls,
+          iterations,
+          "LITE_TURN_PREEMPTED",
+          "a user message is waiting",
+          reasoning,
+        );
       }
       iterations += 1;
 
@@ -215,6 +229,19 @@ export class ProviderTurnRunner {
           toolCallId: call.callId,
           toolName: call.toolName,
         });
+      }
+
+      if (input.shouldPreempt?.() === true) {
+        return result(
+          "preempted",
+          response.text ?? "",
+          usage,
+          toolCalls,
+          iterations,
+          "LITE_TURN_PREEMPTED",
+          "a user message is waiting",
+          reasoning,
+        );
       }
     }
 

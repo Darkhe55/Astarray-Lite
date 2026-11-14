@@ -69,6 +69,8 @@ export class LiteKernelRuntime implements LiteKernelPort {
   private readonly listeners = new Set<LiteEventListener>();
   private taskCooldownTaskId: string | null = null;
   private taskCooldownUntil = 0;
+  private taskTurnActive = false;
+  private taskInterruptRequested = false;
   private status: RuntimeStatus = "booting";
 
   constructor(options: LiteKernelRuntimeOptions) {
@@ -115,6 +117,7 @@ export class LiteKernelRuntime implements LiteKernelPort {
       atIso: new Date().toISOString(),
       messageId: message.messageId,
     });
+    if (this.taskTurnActive) this.taskInterruptRequested = true;
     return {
       messageId: message.messageId,
       status: "queued",
@@ -318,6 +321,8 @@ export class LiteKernelRuntime implements LiteKernelPort {
     }
 
     this.status = "running";
+    this.taskTurnActive = true;
+    this.taskInterruptRequested = false;
     const turnId = `trn_${Date.now()}`;
     this.emit({ type: "turn.started", atIso: new Date().toISOString(), turnId, kind: "task" });
     try {
@@ -351,6 +356,7 @@ export class LiteKernelRuntime implements LiteKernelPort {
         ],
         tools,
         maxOutputTokens: this.options.maxOutputTokens ?? 4_096,
+        shouldPreempt: () => this.taskInterruptRequested,
         executeTool: async (call, signal) => {
           const executed = await this.options.toolExecutor.execute({
             callId: call.callId,
@@ -370,7 +376,12 @@ export class LiteKernelRuntime implements LiteKernelPort {
         type: "turn.finished",
         atIso: new Date().toISOString(),
         turnId,
-        outcome: result.outcome === "completed" ? "completed" : "failed",
+        outcome:
+          result.outcome === "completed"
+            ? "completed"
+            : result.outcome === "preempted"
+              ? "interrupted"
+              : "failed",
         durationMs: 0,
         ...(result.text === "" ? {} : { text: result.text }),
         ...(result.reasoning === undefined ? {} : { reasoning: result.reasoning }),
@@ -386,7 +397,7 @@ export class LiteKernelRuntime implements LiteKernelPort {
             }),
       });
       const remaining = taskStore.list()[0];
-      if (remaining !== undefined && remaining.taskId === task.taskId) {
+      if (result.outcome !== "preempted" && remaining !== undefined && remaining.taskId === task.taskId) {
         this.taskCooldownTaskId = task.taskId;
         this.taskCooldownUntil = Date.now() + 3_000;
       } else {
@@ -414,6 +425,8 @@ export class LiteKernelRuntime implements LiteKernelPort {
       this.emit({ type: "error", atIso: new Date().toISOString(), code, message });
       return { outcome: "error", text: "", toolCallCount: 0, errorCode: code };
     } finally {
+      this.taskTurnActive = false;
+      this.taskInterruptRequested = false;
       if (this.status === "running") this.status = "idle";
     }
   }

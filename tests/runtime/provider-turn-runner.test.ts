@@ -177,5 +177,21 @@ describe("ProviderTurnRunner", () => {
     expect(aborted.outcome).toBe("aborted");
     expect(aborted.errorCode).toBe("LITE_TURN_CANCELLED");
   });
+
+  it("preempts before the next provider call when a user message is waiting", async () => {
+    const provider = new FakeProvider([{ kind: "text", text: "should not run" }]);
+    const runner = new ProviderTurnRunner();
+    const result = await runner.run({
+      provider,
+      messages,
+      tools: [],
+      maxOutputTokens: 100,
+      executeTool: execute,
+      shouldPreempt: () => true,
+    });
+    expect(result.outcome).toBe("preempted");
+    expect(result.errorCode).toBe("LITE_TURN_PREEMPTED");
+    expect(provider.requests).toHaveLength(0);
+  });
 });
 
