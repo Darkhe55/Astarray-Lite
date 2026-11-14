@@ -210,6 +210,25 @@ describe("createProductKernel", () => {
     await kernel.stop();
   });
 
+  it("keeps external kernel state out of the project workspace", async () => {
+    const workspace = await createTestDirectory("product-external-workspace");
+    const stateDirectory = await createTestDirectory("product-external-state");
+    directories.push(workspace, stateDirectory);
+    const kernel = await createProductKernel({
+      workspaceRootPath: workspace,
+      stateDirectory,
+      allowExternalStateDirectory: true,
+      sessionId: "session-external",
+      projectIdentifier: "project-external",
+      provider: new FakeProvider([]),
+      approvalHandler: async () => "allow-session",
+    });
+    await kernel.start();
+    expect(await fs.readdir(workspace)).toEqual([]);
+    expect(await fs.readdir(stateDirectory)).toContain("state.json");
+    await kernel.stop();
+  });
+
   it("rejects a second instance on the same workspace", async () => {
     const { workspace, kernel } = await setup([]);
     await kernel.start();

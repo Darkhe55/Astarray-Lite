@@ -41,6 +41,37 @@ describe("resolveLitePaths", () => {
     expect(paths.stateRoot).toBe(stateRoot);
   });
 
+  it("accepts an explicit external state directory", async () => {
+    const root = await workspace();
+    const external = path.resolve(root, "..", "external-agent-state");
+    const paths = resolveLitePaths({
+      stateDirectory: external,
+      workspaceRootPath: root,
+      allowExternalStateDirectory: true,
+    });
+    expect(paths.workspaceRoot).toBe(path.resolve(root));
+    expect(paths.stateRoot).toBe(external);
+  });
+
+  it("rejects an external state directory unless explicitly allowed", async () => {
+    const root = await workspace();
+    const external = path.resolve(root, "..", "external-agent-state");
+    expect(() =>
+      resolveLitePaths({ stateDirectory: external, workspaceRootPath: root }),
+    ).toThrow(/LITE_PATH_OUT_OF_WORKSPACE|child of workspaceRootPath/u);
+  });
+
+  it("rejects a state directory that contains the workspace", async () => {
+    const root = await workspace();
+    expect(() =>
+      resolveLitePaths({
+        stateDirectory: path.dirname(root),
+        workspaceRootPath: root,
+        allowExternalStateDirectory: true,
+      }),
+    ).toThrow(/LITE_PATH_OUT_OF_WORKSPACE|must not contain/u);
+  });
+
   it("rejects a state directory that escapes the workspace", async () => {
     const root = await workspace();
     expect(() =>

@@ -55,6 +55,7 @@ export interface ProductApprovalRequest {
 export interface ProductKernelOptions {
   readonly workspaceRootPath: string;
   readonly stateDirectory?: string;
+  readonly allowExternalStateDirectory?: boolean;
   readonly sessionId: string;
   readonly projectIdentifier: string;
   readonly provider: LiteProvider;
@@ -266,6 +267,9 @@ export async function createProductKernel(options: ProductKernelOptions): Promis
   const paths = resolveLitePaths({
     stateDirectory: options.stateDirectory ?? ".astarray-lite",
     workspaceRootPath: options.workspaceRootPath,
+    ...(options.allowExternalStateDirectory === true
+      ? { allowExternalStateDirectory: true }
+      : {}),
   });
   const now = options.now ?? (() => new Date());
   const inbox = new UserInbox({ paths, now });

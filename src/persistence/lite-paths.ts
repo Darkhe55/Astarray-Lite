@@ -36,6 +36,13 @@ export interface LitePaths {
 export interface ResolveLitePathsInput {
   readonly stateDirectory: string;
   readonly workspaceRootPath: string;
+  /**
+   * Explicitly allow the state directory to live outside the workspace. The
+   * desktop product uses this to keep Agent memory/cache out of the user's
+   * project. Relative paths still resolve inside the workspace, so external
+   * state must be supplied as an absolute path.
+   */
+  readonly allowExternalStateDirectory?: boolean;
 }
 
 function isStrictlyInside(root: string, candidate: string): boolean {
@@ -44,10 +51,12 @@ function isStrictlyInside(root: string, candidate: string): boolean {
 }
 
 /**
- * Resolves the project-local state layout.
+ * Resolves the state layout.
  *
- * `stateDirectory` may be absolute or relative to the workspace. It must be a
- * strict child of the workspace: the kernel never writes outside the project.
+ * By default `stateDirectory` must be a strict child of the workspace: the
+ * kernel never writes outside the project. Callers may explicitly opt into an
+ * absolute external state directory for products that separate Agent state
+ * from the user's project.
  */
 export function resolveLitePaths(input: ResolveLitePathsInput): LitePaths {
   const workspaceRoot = path.resolve(input.workspaceRootPath);
@@ -55,11 +64,25 @@ export function resolveLitePaths(input: ResolveLitePathsInput): LitePaths {
     ? path.resolve(input.stateDirectory)
     : path.resolve(workspaceRoot, input.stateDirectory);
 
-  if (!isStrictlyInside(workspaceRoot, stateRoot)) {
+  if (stateRoot === workspaceRoot) {
     throw new LiteError(
       "LITE_PATH_OUT_OF_WORKSPACE",
-      "stateDirectory must be a child of workspaceRootPath",
+      "stateDirectory must not be the workspace root",
     );
+  }
+  if (!isStrictlyInside(workspaceRoot, stateRoot)) {
+    if (input.allowExternalStateDirectory !== true) {
+      throw new LiteError(
+        "LITE_PATH_OUT_OF_WORKSPACE",
+        "stateDirectory must be a child of workspaceRootPath",
+      );
+    }
+    if (isStrictlyInside(stateRoot, workspaceRoot)) {
+      throw new LiteError(
+        "LITE_PATH_OUT_OF_WORKSPACE",
+        "external stateDirectory must not contain the workspace",
+      );
+    }
   }
 
   return {
