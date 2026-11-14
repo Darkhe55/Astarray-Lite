@@ -71,6 +71,7 @@ export class LiteKernelRuntime implements LiteKernelPort {
   private taskCooldownUntil = 0;
   private taskTurnActive = false;
   private taskInterruptRequested = false;
+  private taskIncompleteTurns = 0;
   private status: RuntimeStatus = "booting";
 
   constructor(options: LiteKernelRuntimeOptions) {
@@ -330,6 +331,8 @@ export class LiteKernelRuntime implements LiteKernelPort {
       const taskPrompt = [
         "你正在执行后台任务。不要回复用户，直接使用工具推进任务。",
         "当前任务已经是 active；不要调用 task_read_top、task_list、task_update 或 task_reorder。",
+        "禁止访问 .astarray-lite 或内核状态目录；文件工具会拒绝，不要重复尝试。",
+        "不要重复调用失败的工具；根据已有信息完成任务。",
         `任务: ${task.title}`,
         `目标: ${task.objective}`,
         task.constraints.length === 0 ? "" : `约束:\n- ${task.constraints.join("\n- ")}`,
@@ -402,6 +405,18 @@ export class LiteKernelRuntime implements LiteKernelPort {
             }),
       });
       const remaining = taskStore.list()[0];
+      if (result.outcome === "completed") {
+        this.taskIncompleteTurns = 0;
+      } else if (result.outcome !== "preempted" && remaining !== undefined && remaining.taskId === task.taskId) {
+        this.taskIncompleteTurns += 1;
+        if (this.taskIncompleteTurns >= 3) {
+          await taskStore.finishActive({
+            status: "stale",
+            archiveReason: "background task did not complete after three turns",
+          });
+          this.taskIncompleteTurns = 0;
+        }
+      }
       if (result.outcome !== "preempted" && remaining !== undefined && remaining.taskId === task.taskId) {
         this.taskCooldownTaskId = task.taskId;
         this.taskCooldownUntil = Date.now() + 3_000;
