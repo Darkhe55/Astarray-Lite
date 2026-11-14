@@ -273,6 +273,7 @@ describe("createProductKernel", () => {
       provider: new FakeProvider([]),
     });
     await second.start();
+    expect(await second.queryTasks()).toHaveLength(1);
     await second.stop();
     expect(await fs.readdir(stateDirectory)).toContain("state.json");
   });

@@ -277,6 +277,7 @@ export async function createProductKernel(options: ProductKernelOptions): Promis
   const userTurn = new UserTurnController(slot);
   const taskStore = new TaskStore({
     sequenceStore: new TaskSequenceStore(paths),
+    recordsFile: paths.taskRecordsFile,
     now,
   });
   await taskStore.load();

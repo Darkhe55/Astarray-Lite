@@ -1,3 +1,6 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
+
 import { LiteError } from "../contracts/errors.js";
 import {
   activateNextTask,
@@ -21,6 +24,7 @@ import {
 
 export interface TaskStoreOptions {
   readonly sequenceStore?: TaskSequenceStore;
+  readonly recordsFile?: string;
   readonly now?: () => Date;
 }
 
@@ -31,18 +35,48 @@ export interface TaskStoreOptions {
 export class TaskStore {
   private readonly records = new Map<string, LiteTaskRecord>();
   private readonly sequenceStore: TaskSequenceStore | undefined;
+  private readonly recordsFile: string | undefined;
   private readonly now: () => Date;
   private sequence: LiteTaskSequence;
 
   constructor(options: TaskStoreOptions = {}) {
     this.sequenceStore = options.sequenceStore;
+    this.recordsFile = options.recordsFile;
     this.now = options.now ?? (() => new Date());
     this.sequence = createEmptyTaskSequence(this.now().toISOString());
   }
 
   async load(): Promise<void> {
-    if (this.sequenceStore === undefined) return;
-    this.sequence = await this.sequenceStore.read();
+    if (this.sequenceStore !== undefined) {
+      this.sequence = await this.sequenceStore.read();
+    }
+    if (this.recordsFile !== undefined) {
+      try {
+        const raw = await fs.readFile(this.recordsFile, "utf8");
+        const records = JSON.parse(raw) as unknown;
+        if (!Array.isArray(records)) {
+          throw new LiteError("LITE_STATE_CORRUPT", "task records must be an array");
+        }
+        for (const record of records) {
+          if (
+            record === null ||
+            typeof record !== "object" ||
+            typeof (record as { taskId?: unknown }).taskId !== "string"
+          ) {
+            throw new LiteError("LITE_STATE_CORRUPT", "task record is invalid");
+          }
+          const task = record as LiteTaskRecord;
+          this.records.set(task.taskId, task);
+        }
+      } catch (error) {
+        if (error instanceof LiteError) throw error;
+        if ((error as { code?: unknown }).code !== "ENOENT") {
+          throw new LiteError("LITE_STATE_CORRUPT", "task records could not be read", {
+            cause: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
   }
 
   getSequence(): LiteTaskSequence {
@@ -128,6 +162,7 @@ export class TaskStore {
       this.now().toISOString(),
     );
     this.records.set(updated.taskId, updated);
+    await this.persist();
     return updated;
   }
 
@@ -189,6 +224,16 @@ export class TaskStore {
   private async persist(): Promise<void> {
     if (this.sequenceStore !== undefined) {
       await this.sequenceStore.write(this.sequence);
+    }
+    if (this.recordsFile !== undefined) {
+      await fs.mkdir(path.dirname(this.recordsFile), { recursive: true });
+      const temporary = `${this.recordsFile}.${process.pid}.tmp`;
+      await fs.writeFile(
+        temporary,
+        JSON.stringify([...this.records.values()], null, 2),
+        "utf8",
+      );
+      await fs.rename(temporary, this.recordsFile);
     }
   }
 }

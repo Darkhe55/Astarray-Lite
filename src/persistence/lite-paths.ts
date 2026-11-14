@@ -13,6 +13,7 @@ export interface LitePaths {
   readonly inboxJournalFile: string;
   readonly inboxIndexFile: string;
   readonly tasksDirectory: string;
+  readonly taskRecordsFile: string;
   readonly archiveDirectory: string;
   readonly archiveUserMessagesDirectory: string;
   readonly archiveTasksDirectory: string;
@@ -96,6 +97,7 @@ export function resolveLitePaths(input: ResolveLitePathsInput): LitePaths {
     inboxJournalFile: path.join(stateRoot, "inbox", "journal.jsonl"),
     inboxIndexFile: path.join(stateRoot, "inbox", "index.json"),
     tasksDirectory: path.join(stateRoot, "tasks"),
+    taskRecordsFile: path.join(stateRoot, "tasks", "records.json"),
     archiveDirectory: path.join(stateRoot, "archive"),
     archiveUserMessagesDirectory: path.join(stateRoot, "archive", "user-messages"),
     archiveTasksDirectory: path.join(stateRoot, "archive", "tasks"),
