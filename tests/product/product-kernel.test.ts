@@ -181,6 +181,35 @@ describe("createProductKernel", () => {
     await kernel.stop();
   });
 
+  it("cancels the active background task", async () => {
+    const { kernel } = await setup([
+      {
+        kind: "tool-calls",
+        calls: [
+          {
+            callId: "call-1",
+            toolName: "task_insert",
+            argumentsJson: JSON.stringify({
+              position: "bottom",
+              title: "cancel me",
+              objective: "do not finish",
+            }),
+          },
+        ],
+      },
+      { kind: "text", text: "task queued" },
+      { kind: "text", text: "still working" },
+    ]);
+    await kernel.start();
+    await kernel.submitUserMessage({ text: "create a task" });
+    expect((await kernel.runOnce()).outcome).toBe("completed");
+    expect((await kernel.runOnce()).outcome).toBe("completed");
+    expect(await kernel.queryTasks()).toHaveLength(1);
+    expect(await kernel.cancelActiveTask()).toBe(true);
+    expect(await kernel.queryTasks()).toHaveLength(0);
+    await kernel.stop();
+  });
+
   it("rejects a second instance on the same workspace", async () => {
     const { workspace, kernel } = await setup([]);
     await kernel.start();
