@@ -22,7 +22,8 @@ const BASE_ENVIRONMENT_NAMES = [
   "TERM",
 ] as const;
 
-const SENSITIVE_ENVIRONMENT_PATTERN = /(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)/iu;
+const SENSITIVE_ENVIRONMENT_PATTERN =
+  /(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|ASTRARRAY|STATE)/iu;
 
 export function assertShellCommandAllowed(command: string): void {
   if (command.trim() === "") {

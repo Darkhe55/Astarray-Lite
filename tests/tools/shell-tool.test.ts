@@ -94,6 +94,12 @@ describe("shell tool", () => {
       environmentVariableNames: ["API_KEY"],
     });
     expect(sensitiveEnv.errorCode).toBe("LITE_SENSITIVE_CONTENT_BLOCKED");
+
+    const stateEnv = await call(executor, {
+      command: "env",
+      environmentVariableNames: ["ASTRARRAY_UI_STATE_DIR"],
+    });
+    expect(stateEnv.errorCode).toBe("LITE_SENSITIVE_CONTENT_BLOCKED");
   });
 
   it("maps timeout and abort results to stable errors", async () => {
